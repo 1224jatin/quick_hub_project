@@ -14,17 +14,6 @@ class _LoginScreen extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1F44),
-        leading: const Icon(
-          Icons.quick_contacts_mail,
-          color: Colors.white,
-        ),
-        title: const Text(
-          "Welcome To QuickHub",
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
       body: SingleChildScrollView(
           child: Column(
             children: [
@@ -34,63 +23,83 @@ class _LoginScreen extends State<LoginScreen> {
                   height: 200,
                   color: const Color(0xFF0A1F44),
                   child: const Center(
-                    child: Text(
-                      "Fast, reliable, and trusted — your daily needs, simplified.",
-                      style: TextStyle(color: Colors.white, fontSize: 12, ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text("Quick Hub",
+                          style: TextStyle(fontSize: 30,fontWeight: FontWeight.bold),),
+                        Text(
+                        ' "Sab Kaam Yahan" ' ,
+                        style: TextStyle(color: Colors.white, fontSize: 10, ),
+                      ),
+                      ]
                     ),
                   ),
                 ),
               ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(Icons.attach_email_rounded),
-                      Container(
-                        width: 280,
-                        padding: EdgeInsets.all(10),
-                        child: TextField(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(),
-                            labelText: "Email",
-                          ),
-                        ),
-                      )
-                    ],
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(Icons.password_sharp),
-                      Container(
-                        width: 280,
-                        padding: EdgeInsets.all(10),
-                        child: TextField(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(),
-                            labelText: "Password",
-                          ),
-                        ),
-                      )
-                    ],
-                  ),
-                  SizedBox(height: 50),
-                  ElevatedButton(onPressed: (){
+              Container(
+                margin: EdgeInsetsGeometry.symmetric(vertical: 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Padding(padding: EdgeInsetsGeometry.all(40)),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
 
-                  },child: const Text("Log In")),
-                  InkWell(
-                    child: Container(padding: EdgeInsets.fromLTRB(0, 210, 0, 0),
-                      child: Text("Not have any account?/ Sign up " ),
-                    ),onTap: (){
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>RegisterScreen()));
-                  },
-                  )
-                ],
+                      ],
+
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Icon(Icons.attach_email_rounded),
+                        Container(
+                          width: 280,
+                          padding: EdgeInsets.all(10),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: "Email",
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Icon(Icons.password_sharp),
+                        Container(
+                          width: 280,
+                          padding: EdgeInsets.all(10),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: "Password",
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                    SizedBox(height: 50),
+                    ElevatedButton(onPressed: (){
+
+                    },child: const Text("Log In")),
+                    Container(height: 20,margin: EdgeInsetsGeometry.symmetric(vertical: 220),
+                      child: InkWell(
+                        child:Text("Not have any account?/ Sign up " ),
+                        onTap: (){
+                          Navigator.push(context, MaterialPageRoute(builder: (context)=>RegisterScreen()));
+                        },
+                      ),)
+                  ],
+                ),
               )
             ],
           )),

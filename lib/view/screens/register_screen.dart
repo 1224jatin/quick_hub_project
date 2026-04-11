@@ -2,6 +2,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import 'customer_provider_screen.dart';
+
 class RegisterScreen extends StatefulWidget{
   @override
   State<StatefulWidget> createState() => _RegisterScreen();
@@ -11,17 +13,6 @@ class _RegisterScreen extends State<RegisterScreen>{
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1F44),
-        leading: const Icon(
-          Icons.quick_contacts_mail,
-          color: Colors.white,
-        ),
-        title: const Text(
-          "QuickHub",
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
       body:SingleChildScrollView(
         child: Center(
           child: Column(
@@ -34,9 +25,17 @@ class _RegisterScreen extends State<RegisterScreen>{
                   height: 200,
                   color: const Color(0xFF0A1F44),
                   child: const Center(
-                    child: Text(
-                      "Fast, reliable, and trusted — your daily needs, simplified.",
-                      style: TextStyle(color: Colors.white, fontSize: 12, ),
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text("Quick Hub",
+                            style: TextStyle(fontSize: 30,fontWeight: FontWeight.bold),),
+                          Text(
+                            ' "Sab Kaam Yahan" ' ,
+                            style: TextStyle(color: Colors.white, fontSize: 10, ),
+                          ),
+                        ]
                     ),
                   ),
                 ),
@@ -44,7 +43,7 @@ class _RegisterScreen extends State<RegisterScreen>{
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
-                children: [Column(
+                children: [Padding(padding: EdgeInsetsGeometry.all(40)),Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -122,7 +121,7 @@ class _RegisterScreen extends State<RegisterScreen>{
                       ),
                       SizedBox(height: 50),
                       ElevatedButton(onPressed: (){
-
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=>CustomerProviderScreen()));
                       },child: const Text("Register")),
 
                     ]),
