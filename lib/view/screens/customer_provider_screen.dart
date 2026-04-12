@@ -17,6 +17,13 @@ class _CustomerProviderScreen extends State<CustomerProviderScreen>{
               height: 850,
               width: 360/2,
               color: Color(0xFF0A1F44),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image(image: AssetImage("assets/images/customer_provider.png"),height: 200,width: 200,)
+                ],
+              ),
             )
           ],
         ),

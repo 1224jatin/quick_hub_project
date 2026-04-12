@@ -28,7 +28,7 @@ class _LoginScreen extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text("Quick Hub",
-                          style: TextStyle(fontSize: 30,fontWeight: FontWeight.bold),),
+                          style: TextStyle(fontSize: 30,fontWeight: FontWeight.bold,color: Colors.white),),
                         Text(
                         ' "Sab Kaam Yahan" ' ,
                         style: TextStyle(color: Colors.white, fontSize: 10, ),
