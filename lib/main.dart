@@ -15,24 +15,22 @@ import 'view_models/chat_view_model.dart';
 
 // Views
 import 'package:quick_hub_project/view/screens/login_screen.dart';
-
+import 'view/screens/splash_screen.dart';
+import 'view/screens/main_customer_screen.dart';
+import 'view/screens/provider_dashboard_screen.dart';
+import 'models/user_model.dart';
 
 import 'core/theme.dart';
 
 void main() async {
-  // Ensure widget bindings are initialized before Firebase Core
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase using the newly generated options
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize Firebase Cloud Messaging (FCM)
-  final notificationService = NotificationService();
-  await notificationService.initialize();
+  NotificationService().initialize();
 
-  // Run the app wrapped in our State Providers
   runApp(
     MultiProvider(
       providers: [
@@ -56,10 +54,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system, // Dynamically swaps based on device setting
-      // We use AuthenticationWrapper instead of hardcoded LoginScreen
-      // to automatically respond to login state changes.
-      home: const AuthenticationWrapper(),
+      themeMode: ThemeMode.system,
+      home: const SplashScreen(),
     );
   }
 }
@@ -69,33 +65,18 @@ class AuthenticationWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // context.watch listens to state changes in AuthViewModel real-time
     final authViewModel = context.watch<AuthViewModel>();
     
-    // Auth Routing Logic
     if (authViewModel.currentUser != null) {
       final user = authViewModel.currentUser!;
       
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text("Welcome back, ${user.name}!"),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => context.read<AuthViewModel>().logout(), 
-                child: const Text('Logout')
-              )
-            ],
-          ),
-        )
-      );
-      // In the next step, we will route directly to HomeMapScreen (Consumer) 
-      // or ProviderDashboardScreen (Provider) here instead of this placeholder text.
+      if (user.role == UserRole.provider) {
+        return const ProviderDashboardScreen();
+      } else {
+        return const MainCustomerScreen();
+      }
     }
     
-    // If no user is logged in, show Login Screen.
-    return LoginScreen(); // Remove 'const' if your screen isn't const
+    return LoginScreen();
   }
 }

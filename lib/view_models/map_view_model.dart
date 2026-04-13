@@ -16,7 +16,7 @@ class MapViewModel extends ChangeNotifier {
 
   MapViewModel() {
     _initLocation();
-    _fetchProviders();
+    fetchProviders();
   }
 
   Future<void> _initLocation() async {
@@ -27,8 +27,8 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  void _fetchProviders() {
-    _firebaseService.getNearbyActiveProviders().listen((providers) {
+  void fetchProviders({String? serviceType}) {
+    _firebaseService.getNearbyActiveProviders(serviceType: serviceType    ).listen((providers) {
       _nearbyProviders = providers;
       notifyListeners();
     });

@@ -13,7 +13,7 @@ class RequestViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   void listenToIncomingRequests(String providerId) {
-    _firebaseService.getIncomingRequests(providerId).listen((requests) {
+    _firebaseService.streamProviderRequests(providerId).listen((requests) {
       _incomingRequests = requests;
       notifyListeners();
     });

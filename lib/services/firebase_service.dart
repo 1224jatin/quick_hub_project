@@ -46,12 +46,17 @@ class FirebaseService {
     await _firestore.collection('users').doc(uid).update({'pushToken': token});
   }
 
-  Stream<List<UserModel>> getNearbyActiveProviders(String serviceType) {
-    return _firestore
+  Stream<List<UserModel>> getNearbyActiveProviders({String? serviceType}) {
+    Query<Map<String, dynamic>> query = _firestore
         .collection('users')
         .where('role', isEqualTo: 'provider')
-        .where('serviceType', isEqualTo: serviceType)
-        .where('isActive', isEqualTo: true)
+        .where('isActive', isEqualTo: true);
+        
+    if (serviceType != null && serviceType.isNotEmpty) {
+      query = query.where('serviceType', isEqualTo: serviceType);
+    }
+    
+    return query
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => UserModel.fromJson(doc.data())).toList());
   }

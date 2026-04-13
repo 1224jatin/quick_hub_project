@@ -20,6 +20,15 @@ class UserModel {
   final bool isVerified;
   final bool isActive;
   final GeoPoint? location;
+  
+  // New Identity fields
+  final String? gender;
+  final int? age;
+  final String? aadhaarNumber;
+  final String? panNumber;
+  final String? aadhaarImage;
+  final String? panImage;
+  final String? preferredLanguage;
 
   UserModel({
     required this.uid,
@@ -37,6 +46,13 @@ class UserModel {
     this.isVerified = false,
     this.isActive = false,
     this.location,
+    this.gender,
+    this.age,
+    this.aadhaarNumber,
+    this.panNumber,
+    this.aadhaarImage,
+    this.panImage,
+    this.preferredLanguage,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -56,6 +72,13 @@ class UserModel {
       isVerified: json['isVerified'] as bool? ?? false,
       isActive: json['isActive'] as bool? ?? false,
       location: json['location'] as GeoPoint?,
+      gender: json['gender'] as String?,
+      age: json['age'] as int?,
+      aadhaarNumber: json['aadhaarNumber'] as String?,
+      panNumber: json['panNumber'] as String?,
+      aadhaarImage: json['aadhaarImage'] as String?,
+      panImage: json['panImage'] as String?,
+      preferredLanguage: json['preferredLanguage'] as String?,
     );
   }
 
@@ -76,6 +99,13 @@ class UserModel {
       'isVerified': isVerified,
       'isActive': isActive,
       'location': location,
+      'gender': gender,
+      'age': age,
+      'aadhaarNumber': aadhaarNumber,
+      'panNumber': panNumber,
+      'aadhaarImage': aadhaarImage,
+      'panImage': panImage,
+      'preferredLanguage': preferredLanguage,
     };
   }
 }
