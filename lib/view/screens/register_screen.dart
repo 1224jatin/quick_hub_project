@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_model.dart';
 import '../../view_models/auth_view_model.dart';
 import 'login_screen.dart';
@@ -163,32 +164,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Colors.redAccent,
         ),
       );
-    }else{
-      Navigator.pushReplacementNamed(context, '/authentication');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authVM.errorMessage ?? "Registration Successful"),
-          backgroundColor: Colors.green,
-        ),
-      );
     }
   }
 
   Future<void> _sendEmailToAdmin() async {
     setState(() => isSending = true);
+    
+    final templateParams = {
+      'name': _nameController.text,
+      'email': _emailController.text,
+      'role': 'Provider',
+      'age': _ageController.text,
+      'gender': _selectedGender,
+      'skills': _skillsController.text,
+      'city': _selectedCity ?? '',
+      'state': _selectedState ?? '',
+      'time': DateTime.now().toLocal().toString().split('.')[0]
+    };
+
     final success = await _sendEmailViaEmailJS(
-      templateParams: {
-        'name': _nameController.text,
-        'email': _emailController.text,
-        'role': 'Provider',
-        'age': _ageController.text,
-        'gender': _selectedGender,
-        'skills': _skillsController.text,
-        'city': _selectedCity ?? '',
-        'state': _selectedState ?? '',
-        'time': DateTime.now().toLocal().toString().split('.')[0]
-      }
+      templateParams: templateParams
     );
+
+    if (success) {
+      try {
+        // Save provider details to users table with isVerified = false
+        await FirebaseFirestore.instance.collection('users').add({
+          'name': _nameController.text,
+          'email': _emailController.text,
+          'role': 'provider',
+          'isVerified': false,
+          'isActive': false,
+          'age': int.tryParse(_ageController.text) ?? 0,
+          'gender': _selectedGender,
+          'serviceType': _skillsController.text,
+          'state': _selectedState,
+          'city': _selectedCity,
+          'createdAt': FieldValue.serverTimestamp(),
+          'rating': 0.0,
+          'reviewCount': 0,
+        });
+      } catch (e) {
+        debugPrint("Error saving provider to Firestore: $e");
+      }
+    }
 
     setState(() => isSending = false);
 
@@ -266,10 +285,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 15),
                     _buildTextField(_emailController, "Email Address", Icons.email_outlined, keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 15),
-                    _buildTextField(_passwordController, "Password", Icons.lock_outline, obscure: true),
                     
+                    if (_selectedRole == UserRole.consumer) ...[
+                      _buildTextField(_passwordController, "Password", Icons.lock_outline, obscure: true),
+                    ],
+
                     if (_selectedRole == UserRole.provider) ...[
-                      const SizedBox(height: 15),
                       DropdownButtonFormField<String>(
                         value: _selectedState,
                         decoration: const InputDecoration(labelText: "Select State", prefixIcon: Icon(Icons.map_outlined)),

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
@@ -12,6 +13,10 @@ class AuthViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  AuthViewModel() {
+    _checkUserSession();
+  }
+
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
@@ -20,6 +25,16 @@ class AuthViewModel extends ChangeNotifier {
   void _setError(String? message) {
     _errorMessage = message;
     notifyListeners();
+  }
+
+  Future<void> _checkUserSession() async {
+    _setLoading(true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userProfile = await _firebaseService.getUserProfile(user.uid);
+      _currentUser = userProfile;
+    }
+    _setLoading(false);
   }
 
   Future<bool> registerUser({
@@ -41,6 +56,7 @@ class AuthViewModel extends ChangeNotifier {
           role: role,
           createdAt: DateTime.now(),
           serviceType: serviceType,
+          isActive: role == UserRole.provider ? false : true,
         );
         await _firebaseService.saveUserProfile(newUser);
         _currentUser = newUser;
@@ -78,6 +94,14 @@ class AuthViewModel extends ChangeNotifier {
     _setLoading(true);
     _setError(null);
     try {
+      // Security check: Only send if email exists in our DB
+      final exists = await _firebaseService.doesEmailExist(email);
+      if (!exists) {
+        _setError("No account found with this email.");
+        _setLoading(false);
+        return false;
+      }
+      
       await _firebaseService.sendPasswordResetEmail(email);
       _setLoading(false);
       return true;

@@ -29,6 +29,10 @@ class UserModel {
   final String? aadhaarImage;
   final String? panImage;
   final String? preferredLanguage;
+  
+  // Location fields
+  final String? state;
+  final String? city;
 
   UserModel({
     required this.uid,
@@ -53,6 +57,8 @@ class UserModel {
     this.aadhaarImage,
     this.panImage,
     this.preferredLanguage,
+    this.state,
+    this.city,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -91,6 +97,8 @@ class UserModel {
       aadhaarImage: json['aadhaarImage'] as String?,
       panImage: json['panImage'] as String?,
       preferredLanguage: json['preferredLanguage'] as String?,
+      state: json['state'] as String?,
+      city: json['city'] as String?,
     );
   }
 
@@ -130,6 +138,8 @@ class UserModel {
       'aadhaarImage': aadhaarImage,
       'panImage': panImage,
       'preferredLanguage': preferredLanguage,
+      'state': state,
+      'city': city,
     };
   }
 }
