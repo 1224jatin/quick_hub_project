@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum UserRole { consumer, provider }
+enum UserRole { consumer, provider, admin }
 
 class UserModel {
   final String uid;
@@ -56,11 +56,23 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    UserRole role;
+    switch (json['role']) {
+      case 'provider':
+        role = UserRole.provider;
+        break;
+      case 'admin':
+        role = UserRole.admin;
+        break;
+      default:
+        role = UserRole.consumer;
+    }
+
     return UserModel(
       uid: json['uid'] as String,
       name: json['name'] as String,
       email: json['email'] as String,
-      role: json['role'] == 'provider' ? UserRole.provider : UserRole.consumer,
+      role: role,
       profileImage: json['profileImage'] as String?,
       pushToken: json['pushToken'] as String?,
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -83,11 +95,23 @@ class UserModel {
   }
 
   Map<String, dynamic> toJson() {
+    String roleString;
+    switch (role) {
+      case UserRole.provider:
+        roleString = 'provider';
+        break;
+      case UserRole.admin:
+        roleString = 'admin';
+        break;
+      default:
+        roleString = 'consumer';
+    }
+
     return {
       'uid': uid,
       'name': name,
       'email': email,
-      'role': role == UserRole.provider ? 'provider' : 'consumer',
+      'role': roleString,
       'profileImage': profileImage,
       'pushToken': pushToken,
       'createdAt': Timestamp.fromDate(createdAt),

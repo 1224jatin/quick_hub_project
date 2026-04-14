@@ -32,15 +32,63 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
-
-
-      // If success is true, main.dart's AuthenticationWrapper will automatically swap screens!
     }
+  }
+
+  void _showForgotPasswordDialog(BuildContext context) {
+    final TextEditingController resetEmailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Reset Password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Enter your email to receive a password reset link."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: resetEmailController,
+              decoration: const InputDecoration(
+                hintText: "Email Address",
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(100, 40)),
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isNotEmpty) {
+                final authVM = context.read<AuthViewModel>();
+                final success = await authVM.sendPasswordResetEmail(email);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success 
+                        ? "Reset link sent! Check your email." 
+                        : (authVM.errorMessage ?? "Failed to send reset link.")),
+                      backgroundColor: success ? Colors.green : Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text("Send"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically fetch colors to respect Light/Dark mode
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -48,13 +96,12 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Curved Premium Header
             ClipPath(
               clipper: MyCustomClipper(),
               child: Container(
                 height: 280,
                 width: double.infinity,
-                color: theme.primaryColor, // Auto-flips for dark/light mode
+                color: theme.primaryColor,
                 child: SafeArea(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -83,7 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             
-            // Login Form Container
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
               child: Form(
@@ -91,7 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 10),
-                    // Email Field
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -102,7 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: (value) => value!.isEmpty ? "Enter your email" : null,
                     ),
                     const SizedBox(height: 20),
-                    // Password Field
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
@@ -114,11 +158,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 15),
                     
-                    // Forgot Password Link
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () => _showForgotPasswordDialog(context),
                         child: Text(
                           "Forgot password?",
                           style: TextStyle(
@@ -130,7 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 15),
                     
-                    // Login Button tied to ViewModel
                     Consumer<AuthViewModel>(
                       builder: (context, authVM, child) {
                         if (authVM.isLoading) {
@@ -144,7 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 30),
                     
-                    // Sign up redirect
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -180,7 +221,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Re-using the beautiful custom clipper from original code, slightly smoothed
 class MyCustomClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {

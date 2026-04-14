@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../models/user_model.dart';
 import '../../view_models/auth_view_model.dart';
 import 'login_screen.dart';
@@ -17,7 +20,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _cityController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _skillsController = TextEditingController();
   
@@ -25,68 +27,180 @@ class _RegisterScreenState extends State<RegisterScreen> {
   
   UserRole _selectedRole = UserRole.consumer;
   String _selectedGender = 'Male';
+  
+  String? _selectedState;
+  String? _selectedCity;
+  bool isSending = false;
+  String? _generatedOtp;
+
+  final Map<String, List<String>> _statesAndCities = {
+    'Punjab': ['Amritsar', 'Ludhiana', 'Jalandhar', 'Patiala', 'Mohali', 'Bathinda'],
+    'Delhi': ['New Delhi', 'North Delhi', 'South Delhi', 'West Delhi', 'East Delhi'],
+    'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Aurangabad'],
+    'Karnataka': ['Bengaluru', 'Mysore', 'Hubballi', 'Belagavi', 'Mangaluru'],
+    'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Meerut', 'Varanasi'],
+    'Haryana': ['Gurugram', 'Faridabad', 'Panipat', 'Ambala', 'Karnal'],
+    'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Ajmer'],
+    'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar'],
+  };
 
   void _handleRegister(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
-      final authVM = context.read<AuthViewModel>();
-
       if (_selectedRole == UserRole.provider) {
+        if (_selectedState == null || _selectedCity == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Please select State and City")),
+          );
+          return;
+        }
         _sendEmailToAdmin();
       } else {
-        final success = await authVM.registerUser(
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-          role: _selectedRole,
-        );
-
-        if (!success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(authVM.errorMessage ?? "Registration Failed"),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
+        _startOtpVerification();
       }
     }
   }
 
-  void _sendEmailToAdmin() async {
-    final String adminEmail = "admin@quickhub.com";
-    final String subject = "New Service Provider Application: ${_nameController.text}";
-    final String body = "Hello Admin,\n\nA new user wants to register as a Service Provider on Quick Hub.\n\nDetails:\n- Name: ${_nameController.text}\n- Email: ${_emailController.text}\n- City: ${_cityController.text}\n- Age: ${_ageController.text}\n- Gender: $_selectedGender\n- Skills/Services: ${_skillsController.text}\n\nPlease review this application.";
-
-    final Uri emailLaunchUri = Uri(
-      scheme: 'mailto',
-      path: adminEmail,
-      query: _encodeQueryParameters(<String, String>{
-        'subject': subject,
-        'body': body,
-      }),
+  void _startOtpVerification() async {
+    setState(() => isSending = true);
+    _generatedOtp = (Random().nextInt(900000) + 100000).toString();
+    
+    final success = await _sendEmailViaEmailJS(
+      templateParams: {
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'otp': _generatedOtp,
+        'type': 'OTP Verification'
+      }
     );
 
-    if (await canLaunchUrl(emailLaunchUri)) {
-      await launchUrl(emailLaunchUri);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Application email drafted! Please send it to proceed.")),
-        );
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Could not open email app. Please email admin@quickhub.com manually.")),
-        );
-      }
+    setState(() => isSending = false);
+
+    if (success && mounted) {
+      _showOtpDialog();
     }
   }
 
-  String? _encodeQueryParameters(Map<String, String> params) {
-    return params.entries
-        .map((MapEntry<String, String> e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
+  Future<bool> _sendEmailViaEmailJS({required Map<String, dynamic> templateParams}) async {
+    const serviceId = 'service_gcr01ra';
+    const tempId = 'template_e82ltum';
+    const publicKey = 'ON_pVSKX8vhc3XEhM';
+    final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'origin': 'http://localhost',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'service_id': serviceId,
+          'template_id': tempId,
+          'user_id': publicKey,
+          'template_params': templateParams
+        })
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void _showOtpDialog() {
+    final TextEditingController otpController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Verify Email"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("An OTP has been sent to your email. Please enter it below."),
+            const SizedBox(height: 15),
+            TextField(
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: "Enter 6-digit OTP"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (otpController.text == _generatedOtp) {
+                Navigator.pop(context);
+                _completeRegistration();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Invalid OTP. Please try again.")),
+                );
+              }
+            },
+            child: const Text("Verify"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _completeRegistration() async {
+    final authVM = context.read<AuthViewModel>();
+    final success = await authVM.registerUser(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      role: _selectedRole,
+    );
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authVM.errorMessage ?? "Registration Failed"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _sendEmailToAdmin() async {
+    setState(() => isSending = true);
+    final success = await _sendEmailViaEmailJS(
+      templateParams: {
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'role': 'Provider',
+        'age': _ageController.text,
+        'gender': _selectedGender,
+        'skills': _skillsController.text,
+        'city': _selectedCity ?? '',
+        'state': _selectedState ?? '',
+        'time': DateTime.now().toLocal().toString().split('.')[0]
+      }
+    );
+
+    setState(() => isSending = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? "Application Submitted Successfully" : "Submission Failed")),
+      );
+      if (success) {
+        setState(() {
+          _nameController.clear();
+          _emailController.clear();
+          _passwordController.clear();
+          _ageController.clear();
+          _skillsController.clear();
+          _selectedState = null;
+          _selectedCity = null;
+        });
+      }
+    }
   }
 
   @override
@@ -110,10 +224,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       Text(
                         _selectedRole == UserRole.consumer ? "Create Account" : "Partner with Us",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: isDark ? AppTheme.primaryDarkBlue : AppTheme.white,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -122,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ? "Join the Quick Hub Community" 
                             : "Submit your details to start earning",
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: isDark ? AppTheme.primaryDarkBlue : AppTheme.white,
                           fontSize: 14,
                         ),
                       ),
@@ -144,15 +258,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _buildTextField(_nameController, "Full Name", Icons.person_outline),
                     const SizedBox(height: 15),
                     _buildTextField(_emailController, "Email Address", Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 15),
+                    _buildTextField(_passwordController, "Password", Icons.lock_outline, obscure: true),
                     
-                    if (_selectedRole == UserRole.consumer) ...[
-                      const SizedBox(height: 15),
-                      _buildTextField(_passwordController, "Password", Icons.lock_outline, obscure: true),
-                    ],
-
                     if (_selectedRole == UserRole.provider) ...[
                       const SizedBox(height: 15),
-                      _buildTextField(_cityController, "City", Icons.location_city),
+                      DropdownButtonFormField<String>(
+                        value: _selectedState,
+                        decoration: const InputDecoration(labelText: "Select State", prefixIcon: Icon(Icons.map_outlined)),
+                        items: _statesAndCities.keys.map((state) => DropdownMenuItem(value: state, child: Text(state))).toList(),
+                        onChanged: (val) => setState(() { _selectedState = val; _selectedCity = null; }),
+                        validator: (val) => val == null ? "Required" : null,
+                      ),
+                      const SizedBox(height: 15),
+                      DropdownButtonFormField<String>(
+                        value: _selectedCity,
+                        decoration: const InputDecoration(labelText: "Select City", prefixIcon: Icon(Icons.location_city)),
+                        items: _selectedState == null ? [] : _statesAndCities[_selectedState]!.map((city) => DropdownMenuItem(value: city, child: Text(city))).toList(),
+                        onChanged: (val) => setState(() => _selectedCity = val),
+                        disabledHint: const Text("Select a state first"),
+                        validator: (val) => val == null ? "Required" : null,
+                      ),
                       const SizedBox(height: 15),
                       Row(
                         children: [
@@ -171,17 +297,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 15),
                       _buildTextField(_skillsController, "Skills (e.g. Plumbing, Cleaning)", Icons.build_outlined),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Your application will be reviewed by our team.",
-                        style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
-                        textAlign: TextAlign.center,
-                      ),
                     ],
 
                     const SizedBox(height: 30),
                     Consumer<AuthViewModel>(
                       builder: (context, authVM, child) {
-                        if (authVM.isLoading) return const CircularProgressIndicator();
+                        if ((authVM.isLoading == true) || isSending) return const CircularProgressIndicator();
                         return ElevatedButton(
                           style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                           onPressed: () => _handleRegister(context),
@@ -214,20 +335,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildRoleToggle(bool isDark, ThemeData theme) {
     return Container(
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkBackground : AppTheme.primaryLightBlue,
+        color: isDark ? Colors.grey[900] : AppTheme.primaryLightBlue,
         borderRadius: BorderRadius.circular(30),
       ),
       child: Row(
         children: [
-          _buildRoleButton(UserRole.consumer, "Need Services", theme),
-          _buildRoleButton(UserRole.provider, "Provide Services", theme),
+          _buildRoleButton(UserRole.consumer, "Need Services", theme, isDark),
+          _buildRoleButton(UserRole.provider, "Provide Services", theme, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildRoleButton(UserRole role, String label, ThemeData theme) {
+  Widget _buildRoleButton(UserRole role, String label, ThemeData theme, bool isDark) {
     bool isSelected = _selectedRole == role;
     return Expanded(
       child: GestureDetector(
@@ -237,11 +359,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           decoration: BoxDecoration(
             color: isSelected ? theme.primaryColor : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
+            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))] : null,
           ),
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(fontWeight: FontWeight.w600, color: isSelected ? Colors.white : Colors.black),
+            style: TextStyle(
+              fontWeight: FontWeight.w600, 
+              color: isSelected ? (isDark ? AppTheme.primaryDarkBlue : Colors.white) : (isDark ? Colors.white70 : AppTheme.primaryDarkBlue),
+            ),
           ),
         ),
       ),
@@ -255,7 +381,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Text("Already have an account? ", style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700])),
         GestureDetector(
           onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen())),
-          child: const Text("Log In", style: TextStyle(color: AppTheme.primaryDarkBlue, fontWeight: FontWeight.bold)),
+          child: Text("Log In", style: TextStyle(color:isDark ? AppTheme.white : AppTheme.primaryDarkBlue, fontWeight: FontWeight.bold)),
         ),
       ],
     );

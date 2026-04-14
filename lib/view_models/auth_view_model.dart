@@ -74,6 +74,20 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> sendPasswordResetEmail(String email) async {
+    _setLoading(true);
+    _setError(null);
+    try {
+      await _firebaseService.sendPasswordResetEmail(email);
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _firebaseService.logout();
     _currentUser = null;

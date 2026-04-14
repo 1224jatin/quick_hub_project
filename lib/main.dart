@@ -18,6 +18,7 @@ import 'package:quick_hub_project/view/screens/login_screen.dart';
 import 'view/screens/splash_screen.dart';
 import 'view/screens/main_customer_screen.dart';
 import 'view/screens/provider_dashboard_screen.dart';
+import 'view/screens/admin_dashboard_screen.dart';
 import 'models/user_model.dart';
 
 import 'core/theme.dart';
@@ -70,13 +71,15 @@ class AuthenticationWrapper extends StatelessWidget {
     if (authViewModel.currentUser != null) {
       final user = authViewModel.currentUser!;
       
-      if (user.role == UserRole.provider) {
+      if (user.role == UserRole.admin) {
+        return const AdminDashboardScreen();
+      } else if (user.role == UserRole.provider) {
         return const ProviderDashboardScreen();
       } else {
         return const MainCustomerScreen();
       }
     }
     
-    return LoginScreen();
+    return const LoginScreen();
   }
 }

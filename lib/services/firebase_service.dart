@@ -21,6 +21,10 @@ class FirebaseService {
   Future<UserCredential?> loginUser({required String email, required String password}) async {
     return await _auth.signInWithEmailAndPassword(email: email, password: password);
   }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
   
   Future<void> logout() async {
     await _auth.signOut();
@@ -103,14 +107,11 @@ class FirebaseService {
   Future<void> submitReview(ReviewModel review) async {
     final batch = _firestore.batch();
     
-    // 1. Create the review document
     final reviewRef = _firestore.collection('reviews').doc(review.reviewId);
     batch.set(reviewRef, review.toJson());
 
-    // 2. Transactally update the provider's average rating
     final providerRef = _firestore.collection('users').doc(review.providerId);
     
-    // Using a transaction to ensure safe concurrent updates
     await _firestore.runTransaction((transaction) async {
       final providerDoc = await transaction.get(providerRef);
       if (providerDoc.exists) {
@@ -127,7 +128,6 @@ class FirebaseService {
       }
     });
     
-    // Commit the batch execution
     await batch.commit();
   }
 
