@@ -66,10 +66,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     
     final success = await _sendEmailViaEmailJS(
       templateParams: {
-        'name': _nameController.text,
         'email': _emailController.text,
         'otp': _generatedOtp,
-        'type': 'OTP Verification'
+        'time': DateTime.now().toLocal().toString().split('.')[0]
       }
     );
 
@@ -82,7 +81,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<bool> _sendEmailViaEmailJS({required Map<String, dynamic> templateParams}) async {
     const serviceId = 'service_gcr01ra';
-    const tempId = 'template_e82ltum';
+    const tempId = 'template_m8r3std';
     const publicKey = 'ON_pVSKX8vhc3XEhM';
     final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
 
@@ -162,6 +161,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         SnackBar(
           content: Text(authVM.errorMessage ?? "Registration Failed"),
           backgroundColor: Colors.redAccent,
+        ),
+      );
+    }else{
+      Navigator.pushReplacementNamed(context, '/authentication');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(authVM.errorMessage ?? "Registration Successful"),
+          backgroundColor: Colors.green,
         ),
       );
     }

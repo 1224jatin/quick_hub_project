@@ -31,7 +31,16 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: Colors.redAccent,
           ),
         );
+      }else{
+        Navigator.pushReplacementNamed(context, '/authentication');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authVM.errorMessage ?? "Login Successful"),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
+
     }
   }
 
