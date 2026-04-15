@@ -83,16 +83,19 @@ class AuthenticationWrapper extends StatelessWidget {
 
     if (authViewModel.currentUser != null) {
       final user = authViewModel.currentUser!;
+      debugPrint("AuthenticationWrapper: User detected: ${user.email}, Role: ${user.role}");
       
       if (user.role == UserRole.admin) {
         return const AdminDashboardScreen();
       } else if (user.role == UserRole.provider) {
         return const ProviderDashboardScreen();
       } else {
+        debugPrint("AuthenticationWrapper: Defaulting to MainCustomerScreen for role: ${user.role}");
         return const MainCustomerScreen();
       }
     }
     
+    debugPrint("AuthenticationWrapper: No user detected, showing AuthScreen");
     return const AuthScreen();
   }
 }

@@ -199,15 +199,19 @@ class RequestsAdminTab extends StatelessWidget {
                   password: password,
                 );
 
-                // 2. Update the existing user document with the real UID and verified status
-                await FirebaseFirestore.instance.collection('users').doc(provider.uid).update({
-                  'uid': userCredential.user!.uid, // Use the real auth UID
-                  'isVerified': true,
-                  'isActive': true,
-                });
+                final newUid = userCredential.user!.uid;
 
-                // 3. (Optional) Rename the doc if needed to match real UID
-                // For simplicity, we just keep the record and mark it verified.
+                // 2. Map existing provider data to a new map and update keys
+                final providerData = provider.toJson();
+                providerData['uid'] = newUid;
+                providerData['isVerified'] = true;
+                providerData['isActive'] = true;
+
+                // 3. Create a NEW document with the actual Auth UID as the Document ID
+                await FirebaseFirestore.instance.collection('users').doc(newUid).set(providerData);
+
+                // 4. Delete the old document that had the randomly generated ID
+                await FirebaseFirestore.instance.collection('users').doc(provider.uid).delete();
                 
                 if (context.mounted) {
                   Navigator.pop(context);

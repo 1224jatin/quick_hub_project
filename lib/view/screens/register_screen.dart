@@ -73,7 +73,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _sendOtp() async {
-    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please enter a valid email")),
       );
@@ -81,6 +82,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() => isSending = true);
+    
+    final authVM = context.read<AuthViewModel>();
+    final exists = await authVM.checkEmailExists(email);
+    
+    if (exists) {
+      setState(() => isSending = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("This email is already registered."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
     _generatedOtp = (Random().nextInt(900000) + 100000).toString();
     
     final success = await _sendEmailViaEmailJS(

@@ -13,8 +13,40 @@ class AuthViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  String _mapFirebaseAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'This email address is already registered.';
+      case 'user-not-found':
+        return 'No user found with this email address.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'invalid-credential':
+        return 'Invalid email or password.';
+      case 'invalid-email':
+        return 'The email address is not properly formatted.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'weak-password':
+        return 'The password provided is too weak.';
+      default:
+        return 'Authentication failed: ${e.message}';
+    }
+  }
+
   AuthViewModel() {
     _checkUserSession();
+    // Listen for auth state changes (e.g., login, logout)
+    FirebaseAuth.instance.authStateChanges().listen((user) async {
+      debugPrint("AuthViewModel: Auth state changed. User: ${user?.email}");
+      if (user != null) {
+        final userProfile = await _firebaseService.getUserProfile(user.uid);
+        _currentUser = userProfile;
+      } else {
+        _currentUser = null;
+      }
+      notifyListeners();
+    });
   }
 
   void _setLoading(bool value) {
@@ -64,8 +96,12 @@ class AuthViewModel extends ChangeNotifier {
         return true;
       }
       return false;
+    } on FirebaseAuthException catch (e) {
+      _setError(_mapFirebaseAuthError(e));
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _setError(e.toString());
+      _setError("An unexpected error occurred. Please try again.");
       _setLoading(false);
       return false;
     }
@@ -88,8 +124,12 @@ class AuthViewModel extends ChangeNotifier {
         return true;
       }
       return false;
+    } on FirebaseAuthException catch (e) {
+      _setError(_mapFirebaseAuthError(e));
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _setError(e.toString());
+      _setError("An unexpected error occurred. Please try again.");
       _setLoading(false);
       return false;
     }
@@ -110,8 +150,12 @@ class AuthViewModel extends ChangeNotifier {
       await _firebaseService.sendPasswordResetEmail(email);
       _setLoading(false);
       return true;
+    } on FirebaseAuthException catch (e) {
+      _setError(_mapFirebaseAuthError(e));
+      _setLoading(false);
+      return false;
     } catch (e) {
-      _setError(e.toString());
+      _setError("An unexpected error occurred. Please try again.");
       _setLoading(false);
       return false;
     }
@@ -121,5 +165,9 @@ class AuthViewModel extends ChangeNotifier {
     await _firebaseService.logout();
     _currentUser = null;
     notifyListeners();
+  }
+
+  Future<bool> checkEmailExists(String email) async {
+    return await _firebaseService.doesEmailExist(email);
   }
 }

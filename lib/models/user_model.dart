@@ -63,7 +63,8 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     UserRole role;
-    switch (json['role']) {
+    final roleStr = (json['role'] as String? ?? 'consumer').toLowerCase();
+    switch (roleStr) {
       case 'provider':
         role = UserRole.provider;
         break;
