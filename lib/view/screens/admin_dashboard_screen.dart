@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../models/service_request_model.dart';
 import '../../models/user_model.dart';
@@ -74,7 +75,7 @@ class RequestsAdminTab extends StatelessWidget {
             child: TabBarView(
               children: [
                 _buildServiceRequests(),
-                _buildPendingProviders(),
+                _buildPendingProviders(context),
               ],
             ),
           ),
@@ -109,7 +110,7 @@ class RequestsAdminTab extends StatelessWidget {
     );
   }
 
-  Widget _buildPendingProviders() {
+  Widget _buildPendingProviders(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -138,12 +139,7 @@ class RequestsAdminTab extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.check_circle, color: Colors.green),
-                      onPressed: () {
-                        FirebaseFirestore.instance.collection('users').doc(provider.uid).update({
-                          'isVerified': true,
-                          'isActive': true,
-                        });
-                      },
+                      onPressed: () => _showApprovalDialog(context, provider),
                     ),
                     IconButton(
                       icon: const Icon(Icons.cancel, color: Colors.red),
@@ -158,6 +154,79 @@ class RequestsAdminTab extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  void _showApprovalDialog(BuildContext context, UserModel provider) {
+    final TextEditingController passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Approve Provider"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Assign a temporary password for ${provider.name}"),
+            const SizedBox(height: 15),
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(
+                hintText: "Enter temporary password",
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final password = passwordController.text.trim();
+              if (password.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Password must be at least 6 characters")),
+                );
+                return;
+              }
+
+              try {
+                // 1. Create official Firebase Auth account for the provider
+                final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                  email: provider.email,
+                  password: password,
+                );
+
+                // 2. Update the existing user document with the real UID and verified status
+                await FirebaseFirestore.instance.collection('users').doc(provider.uid).update({
+                  'uid': userCredential.user!.uid, // Use the real auth UID
+                  'isVerified': true,
+                  'isActive': true,
+                });
+
+                // 3. (Optional) Rename the doc if needed to match real UID
+                // For simplicity, we just keep the record and mark it verified.
+                
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("${provider.name} approved! They can now login.")),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: ${e.toString()}")),
+                  );
+                }
+              }
+            },
+            child: const Text("Approve & Create Account"),
+          ),
+        ],
+      ),
     );
   }
 }

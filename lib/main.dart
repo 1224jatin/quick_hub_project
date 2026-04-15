@@ -57,6 +57,11 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       home: const SplashScreen(),
+      // Adding a named route for the wrapper if needed manually, 
+      // but home: SplashScreen already handles the flow.
+      routes: {
+        '/authentication': (context) => const AuthenticationWrapper(),
+      },
     );
   }
 }
@@ -66,8 +71,15 @@ class AuthenticationWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // context.watch ensures this widget rebuilds whenever AuthViewModel calls notifyListeners()
     final authViewModel = context.watch<AuthViewModel>();
     
+    if (authViewModel.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     if (authViewModel.currentUser != null) {
       final user = authViewModel.currentUser!;
       

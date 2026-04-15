@@ -23,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _skillsController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
   
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   
@@ -33,6 +34,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _selectedCity;
   bool isSending = false;
   String? _generatedOtp;
+  bool _isOtpSent = false;
+  bool _isEmailVerified = false;
 
   final Map<String, List<String>> _statesAndCities = {
     'Punjab': ['Amritsar', 'Ludhiana', 'Jalandhar', 'Patiala', 'Mohali', 'Bathinda'],
@@ -47,6 +50,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _handleRegister(BuildContext context) async {
     if (_formKey.currentState!.validate()) {
+      if (!_isEmailVerified) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please verify your email first")),
+        );
+        return;
+      }
+
       if (_selectedRole == UserRole.provider) {
         if (_selectedState == null || _selectedCity == null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -56,12 +66,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
         _sendEmailToAdmin();
       } else {
-        _startOtpVerification();
+        _completeRegistration();
       }
     }
   }
 
-  void _startOtpVerification() async {
+  void _sendOtp() async {
+    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid email")),
+      );
+      return;
+    }
+
     setState(() => isSending = true);
     _generatedOtp = (Random().nextInt(900000) + 100000).toString();
     
@@ -73,10 +90,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     );
 
-    setState(() => isSending = false);
+    setState(() {
+      isSending = false;
+      if (success) {
+        _isOtpSent = true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Verification code sent to your email")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to send OTP. Try again.")),
+        );
+      }
+    });
+  }
 
-    if (success && mounted) {
-      _showOtpDialog();
+  void _verifyOtp() {
+    if (_otpController.text == _generatedOtp) {
+      setState(() {
+        _isEmailVerified = true;
+        _isOtpSent = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Email verified successfully!")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invalid OTP. Please try again.")),
+      );
     }
   }
 
@@ -106,48 +147,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _showOtpDialog() {
-    final TextEditingController otpController = TextEditingController();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("Verify Email"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("An OTP has been sent to your email. Please enter it below."),
-            const SizedBox(height: 15),
-            TextField(
-              controller: otpController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: "Enter 6-digit OTP"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (otpController.text == _generatedOtp) {
-                Navigator.pop(context);
-                _completeRegistration();
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Invalid OTP. Please try again.")),
-                );
-              }
-            },
-            child: const Text("Verify"),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _completeRegistration() async {
     final authVM = context.read<AuthViewModel>();
     final success = await authVM.registerUser(
@@ -157,7 +156,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       role: _selectedRole,
     );
 
-    if (!success && mounted) {
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Account created successfully!"), backgroundColor: Colors.green),
+      );
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authVM.errorMessage ?? "Registration Failed"),
@@ -188,8 +191,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (success) {
       try {
-        // Save provider details to users table with isVerified = false
-        await FirebaseFirestore.instance.collection('users').add({
+        final docRef = FirebaseFirestore.instance.collection('users').doc();
+        await docRef.set({
+          'uid': docRef.id,
           'name': _nameController.text,
           'email': _emailController.text,
           'role': 'provider',
@@ -224,6 +228,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _skillsController.clear();
           _selectedState = null;
           _selectedCity = null;
+          _isEmailVerified = false; // Reset for next use
         });
       }
     }
@@ -283,7 +288,70 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     _buildTextField(_nameController, "Full Name", Icons.person_outline),
                     const SizedBox(height: 15),
-                    _buildTextField(_emailController, "Email Address", Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                    
+                    // Email field with Verify button
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            _emailController, 
+                            "Email Address", 
+                            Icons.email_outlined, 
+                            keyboardType: TextInputType.emailAddress,
+                            enabled: !_isEmailVerified,
+                          ),
+                        ),
+                        if (!_isEmailVerified) ...[
+                          const SizedBox(width: 10),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 5),
+                            child: ElevatedButton(
+                              onPressed: isSending ? null : _sendOtp,
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(80, 45),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                              ),
+                              child: isSending 
+                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Text(_isOtpSent ? "Resend" : "Verify"),
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(width: 10),
+                          const Padding(
+                            padding: const EdgeInsets.only(top: 15),
+                            child: Icon(Icons.check_circle, color: Colors.green),
+                          ),
+                        ],
+                      ],
+                    ),
+                    
+                    // OTP Field if code is sent
+                    if (_isOtpSent && !_isEmailVerified) ...[
+                      const SizedBox(height: 15),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _buildTextField(_otpController, "Enter OTP", Icons.lock_clock, keyboardType: TextInputType.number),
+                          ),
+                          const SizedBox(width: 10),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 5),
+                            child: ElevatedButton(
+                              onPressed: _verifyOtp,
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(80, 45),
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                              ),
+                              child: const Text("Confirm"),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     const SizedBox(height: 15),
                     
                     if (_selectedRole == UserRole.consumer) ...[
@@ -325,12 +393,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 15),
                       _buildTextField(_skillsController, "Skills (e.g. Plumbing, Cleaning)", Icons.build_outlined),
                       const SizedBox(height: 10),
+                      const Text(
+                        "Your application will be sent for admin verification. Once approved, you can set your password via 'Forgot Password'.",
+                        style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
 
                     const SizedBox(height: 30),
                     Consumer<AuthViewModel>(
                       builder: (context, authVM, child) {
-                        if ((authVM.isLoading == true) || isSending) return const CircularProgressIndicator();
+                        if (authVM.isLoading) return const CircularProgressIndicator();
                         return ElevatedButton(
                           style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                           onPressed: () => _handleRegister(context),
@@ -351,11 +424,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool obscure = false, TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {bool obscure = false, TextInputType keyboardType = TextInputType.text, bool enabled = true}) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      enabled: enabled,
       decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon)),
       validator: (value) => value!.isEmpty ? "Required" : null,
     );
@@ -381,7 +455,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool isSelected = _selectedRole == role;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedRole = role),
+        onTap: () => setState(() {
+          _selectedRole = role;
+          _isEmailVerified = false;
+          _isOtpSent = false;
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(

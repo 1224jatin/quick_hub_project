@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/user_model.dart';
@@ -23,12 +24,21 @@ class MapViewModel extends ChangeNotifier {
     final position = await _locationService.getCurrentLocation();
     if (position != null) {
       _currentPosition = LatLng(position.latitude, position.longitude);
+      
+      // Update the user's location in Firestore if they are logged in
+      final uid = _firebaseService.currentUserId;
+      if (uid != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          'location': GeoPoint(position.latitude, position.longitude),
+        });
+      }
+      
       notifyListeners();
     }
   }
 
   void fetchProviders({String? serviceType}) {
-    _firebaseService.getNearbyActiveProviders(serviceType: serviceType    ).listen((providers) {
+    _firebaseService.getNearbyActiveProviders(serviceType: serviceType).listen((providers) {
       _nearbyProviders = providers;
       notifyListeners();
     });

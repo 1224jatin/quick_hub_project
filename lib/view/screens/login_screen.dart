@@ -24,23 +24,24 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text.trim(),
       );
 
-      if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authVM.errorMessage ?? "Login Failed"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }else{
-        Navigator.pushReplacementNamed(context, '/authentication');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authVM.errorMessage ?? "Login Successful"),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (mounted) {
+        if (!success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authVM.errorMessage ?? "Login Failed"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        } else {
+          // Success is handled by AuthenticationWrapper in main.dart
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Login Successful! Welcome back."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
-
     }
   }
 
