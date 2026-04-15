@@ -5,7 +5,8 @@ import '../../view_models/auth_view_model.dart';
 import '../../core/theme.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback onRegisterTap;
+  const LoginScreen({super.key, required this.onRegisterTap});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -204,12 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const RegisterScreen()),
-                            );
-                          },
+                          onTap: widget.onRegisterTap,
                           child: Text(
                             "Sign up",
                             style: TextStyle(

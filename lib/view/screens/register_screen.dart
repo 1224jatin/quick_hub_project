@@ -11,7 +11,8 @@ import 'login_screen.dart';
 import '../../core/theme.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final VoidCallback onLoginTap;
+  const RegisterScreen({super.key, required this.onLoginTap});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -486,7 +487,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Text("Already have an account? ", style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700])),
         GestureDetector(
-          onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen())),
+          onTap: widget.onLoginTap,
           child: Text("Log In", style: TextStyle(color:isDark ? AppTheme.white : AppTheme.primaryDarkBlue, fontWeight: FontWeight.bold)),
         ),
       ],

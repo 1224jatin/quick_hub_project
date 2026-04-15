@@ -78,6 +78,11 @@ class AuthViewModel extends ChangeNotifier {
       final credential = await _firebaseService.loginUser(email: email, password: password);
       if (credential != null && credential.user != null) {
         final userProfile = await _firebaseService.getUserProfile(credential.user!.uid);
+        if (userProfile == null) {
+          _setError("User profile not found. Please contact support.");
+          _setLoading(false);
+          return false;
+        }
         _currentUser = userProfile;
         _setLoading(false);
         return true;

@@ -19,6 +19,7 @@ import 'view/screens/splash_screen.dart';
 import 'view/screens/main_customer_screen.dart';
 import 'view/screens/provider_dashboard_screen.dart';
 import 'view/screens/admin_dashboard_screen.dart';
+import 'view/screens/auth_screen.dart';
 import 'models/user_model.dart';
 
 import 'core/theme.dart';
@@ -92,6 +93,6 @@ class AuthenticationWrapper extends StatelessWidget {
       }
     }
     
-    return const LoginScreen();
+    return const AuthScreen();
   }
 }
