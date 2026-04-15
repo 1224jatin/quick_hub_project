@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import '../../services/razorpay_service.dart';
+import '../../services/firebase_service.dart';
 import 'home_map_screen.dart';
+import 'chat_screen.dart';
+import 'notifications_screen.dart';
 import '../widgets/animated_bottom_nav.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../core/theme.dart';
+import '../../models/complaint_model.dart';
+import 'package:uuid/uuid.dart';
 
 class MainCustomerScreen extends StatefulWidget {
   const MainCustomerScreen({super.key});
@@ -172,16 +180,21 @@ class CustomerHomeTab extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkSurface : Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
-                      ],
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppTheme.darkSurface : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                        ],
+                      ),
+                      child: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white : AppTheme.primaryDarkBlue),
                     ),
-                    child: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white : AppTheme.primaryDarkBlue),
                   ),
                 ],
               ),
@@ -419,14 +432,215 @@ class CustomerHomeTab extends StatelessWidget {
   }
 }
 
-class CustomerBookingsTab extends StatelessWidget {
+class CustomerBookingsTab extends StatefulWidget {
   const CustomerBookingsTab({super.key});
 
   @override
+  State<CustomerBookingsTab> createState() => _CustomerBookingsTabState();
+}
+
+class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
+  late final RazorpayService _razorpayService;
+  String? _processingRequestId;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpayService = RazorpayService();
+    _razorpayService.onSuccess = _handlePaymentSuccess;
+    _razorpayService.onFailure = _handlePaymentError;
+  }
+
+  @override
+  void dispose() {
+    _razorpayService.dispose();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    if (_processingRequestId == null) return;
+    
+    // Payment Successful, record in backend
+    final authVM = context.read<AuthViewModel>();
+    final consumerId = authVM.currentUser!.uid;
+
+    try {
+      // In a real app we'd fetch the exact exact amount securely, here we assume it succeeded correctly.
+      final doc = await FirebaseFirestore.instance.collection('requests').doc(_processingRequestId).get();
+      final data = doc.data()!;
+      final totalAmount = (data['agreedPrice'] as num).toDouble();
+      final providerId = data['providerId'];
+
+      await FirebaseService().processPayment(
+        requestId: _processingRequestId!,
+        consumerId: consumerId,
+        providerId: providerId,
+        totalAmount: totalAmount,
+        paymentMethod: 'Razorpay',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment Successful!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error recording payment: $e')));
+      }
+    } finally {
+      _processingRequestId = null;
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    _processingRequestId = null;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment Failed: ${response.message}')));
+  }
+
+  void _startPayment(BuildContext context, String requestId, double amount) {
+    final user = context.read<AuthViewModel>().currentUser;
+    if (user == null) return;
+
+    _processingRequestId = requestId;
+
+    _razorpayService.openCheckout(
+      amount: amount,
+      name: 'Quick Hub Services',
+      description: 'Payment for completed service',
+      contact: '9999999999', // Dummy contact
+      email: user.email,
+    );
+  }
+
+  void _showComplaintDialog(BuildContext context, String requestId, String accusedId) {
+    final TextEditingController textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Report an Issue'),
+          content: TextField(
+            controller: textController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Describe the problem clearly...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final text = textController.text.trim();
+                if (text.isEmpty) return;
+                
+                final consumerId = context.read<AuthViewModel>().currentUser?.uid;
+                if (consumerId != null) {
+                  final complaint = ComplaintModel(
+                    complaintId: const Uuid().v4(),
+                    reporterId: consumerId,
+                    accusedId: accusedId,
+                    requestId: requestId,
+                    description: text,
+                    timestamp: DateTime.now(),
+                  );
+                  await FirebaseService().submitComplaint(complaint);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report submitted successfully.')));
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Submit Report'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final consumerId = context.read<AuthViewModel>().currentUser?.uid;
+    if (consumerId == null) return const Center(child: Text("Please Login to see bookings."));
+
     return Scaffold(
       appBar: AppBar(title: const Text('My Bookings')),
-      body: const Center(child: Text('Your bookings will appear here.')),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('requests')
+            .where('consumerId', isEqualTo: consumerId)
+            .orderBy('timestamp', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          
+          final bookings = snapshot.data!.docs;
+
+          if (bookings.isEmpty) return const Center(child: Text('You have no bookings.'));
+
+          return ListView.builder(
+            itemCount: bookings.length,
+            padding: const EdgeInsets.only(bottom: 100),
+            itemBuilder: (context, index) {
+              final data = bookings[index].data() as Map<String, dynamic>;
+              final requestId = bookings[index].id;
+              final serviceType = data['serviceType'] ?? 'Service';
+              final status = data['status'] ?? 'pending';
+              final paymentStatus = data['paymentStatus'] ?? 'pending';
+              final agreedPrice = (data['agreedPrice'] as num?)?.toDouble() ?? 0.0;
+              final providerId = data['providerId'];
+
+              Widget trailingWidget;
+              if (status == 'completed' && paymentStatus == 'pending') {
+                trailingWidget = ElevatedButton(
+                  onPressed: () => _startPayment(context, requestId, agreedPrice),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: Text('Pay \$${agreedPrice.toStringAsFixed(2)}'),
+                );
+              } else if (paymentStatus == 'paid') {
+                trailingWidget = const Text('PAID', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold));
+              } else if (status == 'accepted' || status == 'inProgress') {
+                trailingWidget = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chat, color: Colors.blue),
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(requestId: requestId, otherUserId: providerId)));
+                      },
+                    ),
+                    Text(status.toUpperCase(), style: const TextStyle(fontSize: 12)),
+                  ],
+                );
+              } else {
+                trailingWidget = Text(status.toUpperCase());
+              }
+
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  title: Text(serviceType, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('Status: ${status.toUpperCase()}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      trailingWidget,
+                      IconButton(
+                        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                        onPressed: () => _showComplaintDialog(context, requestId, providerId),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

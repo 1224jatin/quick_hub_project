@@ -7,6 +7,10 @@ import '../../view_models/auth_view_model.dart';
 import '../../view_models/request_view_model.dart';
 import '../../models/user_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import '../../services/firebase_service.dart';
+import '../../models/notification_model.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeMapScreen extends StatefulWidget {
   const HomeMapScreen({super.key});
@@ -111,6 +115,25 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                   child: const Text('Send Service Request'),
                 ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.directions),
+                  onPressed: () async {
+                    if (provider.location != null) {
+                      final url = Uri.parse('google.navigation:q=${provider.location!.latitude},${provider.location!.longitude}&mode=d');
+                      try {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      } catch (e) {
+                        final webUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${provider.location!.latitude},${provider.location!.longitude}');
+                        await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+                      }
+                    }
+                  },
+                  label: const Text('Navigate to Provider'),
+                ),
+              ),
             ],
           ),
         );
@@ -126,14 +149,25 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       return;
     }
     
-    final consumerId = context.read<AuthViewModel>().currentUser?.uid;
-    if (consumerId != null) {
+    final consumer = context.read<AuthViewModel>().currentUser;
+    if (consumer != null) {
       context.read<RequestViewModel>().sendRequest(
-            consumerId: consumerId,
+            consumerId: consumer.uid,
             providerId: provider.uid,
             serviceType: provider.serviceType ?? 'General',
             location: GeoPoint(provider.location!.latitude, provider.location!.longitude),
           );
+          
+      // Send notification to Provider
+      final notif = NotificationModel(
+        notificationId: const Uuid().v4(),
+        recipientId: provider.uid,
+        title: 'New Service Request',
+        body: '${consumer.name} requested a ${provider.serviceType ?? 'General'} service.',
+        timestamp: DateTime.now(),
+      );
+      FirebaseService().saveNotification(notif);
+
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Service request sent!')),

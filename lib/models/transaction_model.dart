@@ -13,6 +13,7 @@ class TransactionModel {
   final DateTime timestamp;
   final PaymentStatus status;
   final String paymentMethod;
+  final bool isProviderPaid;
 
   TransactionModel({
     required this.transactionId,
@@ -25,6 +26,7 @@ class TransactionModel {
     required this.timestamp,
     required this.status,
     required this.paymentMethod,
+    this.isProviderPaid = false,
   });
 
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class TransactionModel {
       timestamp: (json['timestamp'] as Timestamp).toDate(),
       status: parsedStatus,
       paymentMethod: json['paymentMethod'] as String,
+      isProviderPaid: json['isProviderPaid'] as bool? ?? false,
     );
   }
 
@@ -62,6 +65,7 @@ class TransactionModel {
       'timestamp': Timestamp.fromDate(timestamp),
       'status': status.name,
       'paymentMethod': paymentMethod,
+      'isProviderPaid': isProviderPaid,
     };
   }
 }

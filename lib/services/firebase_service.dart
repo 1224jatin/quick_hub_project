@@ -5,7 +5,9 @@ import '../models/user_model.dart';
 import '../models/service_request_model.dart';
 import '../models/review_model.dart';
 import '../models/notification_model.dart';
+import '../models/notification_model.dart';
 import '../models/service_category_model.dart';
+import '../models/complaint_model.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -110,6 +112,43 @@ class FirebaseService {
     await _firestore.collection('requests').doc(requestId).update({'status': statusString});
   }
 
+  // ==================== PAYMENTS & TRANSACTIONS ====================
+
+  Future<void> processPayment({
+    required String requestId,
+    required String consumerId,
+    required String providerId,
+    required double totalAmount,
+    required String paymentMethod,
+  }) async {
+    final commission = totalAmount * 0.10; // 10% platform fee
+    final providerEarnings = totalAmount - commission;
+
+    final batch = _firestore.batch();
+
+    // 1. Mark request as paid
+    final requestRef = _firestore.collection('requests').doc(requestId);
+    batch.update(requestRef, {'paymentStatus': 'paid'});
+
+    // 2. Create transaction record
+    final transactionRef = _firestore.collection('transactions').doc();
+    batch.set(transactionRef, {
+      'transactionId': transactionRef.id,
+      'requestId': requestId,
+      'consumerId': consumerId,
+      'providerId': providerId,
+      'totalAmount': totalAmount,
+      'commissionAmount': commission,
+      'providerEarnings': providerEarnings,
+      'timestamp': FieldValue.serverTimestamp(),
+      'status': 'completed',
+      'paymentMethod': paymentMethod,
+      'isProviderPaid': false,
+    });
+
+    await batch.commit();
+  }
+
   // ==================== REVIEWS ====================
 
   Future<void> submitReview(ReviewModel review) async {
@@ -172,5 +211,19 @@ class FirebaseService {
   Future<List<ServiceCategoryModel>> getCategories() async {
     final snapshot = await _firestore.collection('categories').get();
     return snapshot.docs.map((doc) => ServiceCategoryModel.fromJson(doc.data())).toList();
+  }
+
+  // ==================== COMPLAINTS ====================
+
+  Future<void> submitComplaint(ComplaintModel complaint) async {
+    await _firestore.collection('complaints').doc(complaint.complaintId).set(complaint.toJson());
+  }
+
+  Stream<List<ComplaintModel>> streamAllComplaints() {
+    return _firestore
+        .collection('complaints')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => ComplaintModel.fromJson(doc.data())).toList());
   }
 }

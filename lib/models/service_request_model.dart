@@ -9,6 +9,8 @@ class ServiceRequestModel {
   final String serviceType;
   final String? description;
   final double? agreedPrice;
+  final double? hoursWorked;
+  final String paymentStatus;
   final RequestStatus status;
   final DateTime timestamp;
   final DateTime? scheduledDate;
@@ -21,6 +23,8 @@ class ServiceRequestModel {
     required this.serviceType,
     this.description,
     this.agreedPrice,
+    this.hoursWorked,
+    this.paymentStatus = 'pending',
     required this.status,
     required this.timestamp,
     this.scheduledDate,
@@ -45,6 +49,8 @@ class ServiceRequestModel {
       serviceType: json['serviceType'] as String,
       description: json['description'] as String?,
       agreedPrice: (json['agreedPrice'] as num?)?.toDouble(),
+      hoursWorked: (json['hoursWorked'] as num?)?.toDouble(),
+      paymentStatus: json['paymentStatus'] as String? ?? 'pending',
       status: parsedStatus,
       timestamp: (json['timestamp'] as Timestamp).toDate(),
       scheduledDate: (json['scheduledDate'] as Timestamp?)?.toDate(),
@@ -70,6 +76,8 @@ class ServiceRequestModel {
       'serviceType': serviceType,
       'description': description,
       'agreedPrice': agreedPrice,
+      'hoursWorked': hoursWorked,
+      'paymentStatus': paymentStatus,
       'status': statusString,
       'timestamp': Timestamp.fromDate(timestamp),
       'scheduledDate': scheduledDate != null ? Timestamp.fromDate(scheduledDate!) : null,
