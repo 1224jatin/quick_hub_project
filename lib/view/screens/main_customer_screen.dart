@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../services/razorpay_service.dart';
@@ -19,6 +17,8 @@ import '../../core/theme.dart';
 import '../../models/complaint_model.dart';
 import '../../models/user_model.dart';
 import 'package:uuid/uuid.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class MainCustomerScreen extends StatefulWidget {
   const MainCustomerScreen({super.key});
@@ -29,178 +29,43 @@ class MainCustomerScreen extends StatefulWidget {
 
 class _MainCustomerScreenState extends State<MainCustomerScreen> {
   int _selectedIndex = 0;
-  String _currentAddress = "Fetching location...";
-  bool _isLocationFetched = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = context.read<AuthViewModel>().currentUser;
-      if (user != null && user.fullAddress != null && user.fullAddress!.isNotEmpty) {
-        setState(() {
-          _currentAddress = user.fullAddress!;
-        });
-      }
-      _checkLocationPermission();
-    });
-  }
-
-  Future<bool> hasInternet() async {
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      return result.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _checkLocationPermission() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _showLocationServiceDialog();
-      return;
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() => _currentAddress = "Permission denied. Please set manually.");
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _currentAddress = "Permission permanently denied.");
-      return;
-    }
-
-    _determinePosition();
-  }
-
-  void _showLocationServiceDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Location Services Disabled'),
-        content: const Text('Please enable location services to automatically fetch your address.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Geolocator.openLocationSettings();
-              Navigator.pop(context);
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _determinePosition() async {
-    if (_isLocationFetched) return;
-    _isLocationFetched = true;
-
-    print("STEP 1: Starting location fetch");
-
-    try {
-      // Check internet first
-      bool internet = await hasInternet();
-      if (!internet) {
-        setState(() => _currentAddress = "No Internet connection");
-        return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        forceAndroidLocationManager: true,
-        timeLimit: const Duration(seconds: 10),
-      );
-
-      print("STEP 2: Position fetched: ${position.latitude}, ${position.longitude}");
-
-      String address = "Lat: ${position.latitude}, Lng: ${position.longitude}";
-      Placemark? place;
-
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-
-        if (placemarks.isNotEmpty) {
-          place = placemarks.first;
-
-          address =
-          "${place.subLocality ?? ''}, ${place.locality ?? ''}";
-        }
-      } catch (e) {
-        print("PLACEMARK ERROR: $e");
-      }
-
-      if (mounted) {
-        setState(() {
-          _currentAddress = address;
-        });
-      }
-
-      // 🔥 Firestore update (safe, non-blocking)
-      final authVM = context.read<AuthViewModel>();
-      final user = authVM.currentUser;
-
-      if (user != null) {
-        final updatedUser = UserModel(
-          uid: user.uid,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-          location: GeoPoint(position.latitude, position.longitude),
-          houseNo: place?.name ?? user.houseNo,
-          buildingName: place?.subLocality ?? user.buildingName,
-          landmark: place?.thoroughfare ?? user.landmark,
-          city: place?.locality ?? user.city,
-          state: place?.administrativeArea ?? user.state,
-          isActive: user.isActive,
-          profileImage: user.profileImage,
-          fullAddress: place != null
-              ? "${place.name ?? ''}, ${place.subLocality ?? ''}, ${place.thoroughfare ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}, ${place.postalCode ?? ''}".replaceAll(RegExp(r', , '), ', ').replaceAll(RegExp(r'^, '), '').replaceAll(RegExp(r', $'), '')
-              : address,
-        );
-
-        authVM.updateProfile(updatedUser);
-      }
-    } catch (e) {
-      print("LOCATION ERROR: $e");
-
-      // Silently fail if we already have an address
-      if (mounted && _currentAddress == "Fetching location...") {
-        setState(() {
-          _currentAddress = "Failed to fetch location";
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final mapVM = context.watch<MapViewModel>();
     
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: _selectedIndex,
+      body: Stack(
         children: [
-          CustomerHomeTab(currentAddress: _currentAddress),
-          const HomeMapScreen(),
-          const CustomerBookingsTab(),
-          const CustomerProfileTab(),
+          IndexedStack(
+            index: _selectedIndex,
+            children: [
+              const CustomerHomeTab(),
+              const HomeMapScreen(),
+              const CustomerBookingsTab(),
+              const CustomerProfileTab(),
+            ],
+          ),
+          if (mapVM.isFetchingLocation)
+            Container(
+              color: Colors.black54,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const PulseAnimation(),
+                    const SizedBox(height: 20),
+                    const Text(
+                      "Fetching current location...",
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
       bottomNavigationBar: AnimatedBottomNav(
@@ -218,9 +83,58 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
   }
 }
 
+class PulseAnimation extends StatefulWidget {
+  const PulseAnimation({super.key});
+
+  @override
+  State<PulseAnimation> createState() => _PulseAnimationState();
+}
+
+class _PulseAnimationState extends State<PulseAnimation> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppTheme.primaryLightBlue.withOpacity(1 - _controller.value),
+            border: Border.all(
+              color: AppTheme.primaryDarkBlue.withOpacity(1 - _controller.value),
+              width: 4 * _controller.value,
+            ),
+          ),
+          child: const Center(
+            child: Icon(Icons.location_on, color: AppTheme.primaryDarkBlue, size: 30),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class CustomerHomeTab extends StatelessWidget {
-  final String currentAddress;
-  const CustomerHomeTab({super.key, required this.currentAddress});
+  const CustomerHomeTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -285,19 +199,25 @@ class CustomerHomeTab extends StatelessWidget {
                               color: isDark ? Colors.white : AppTheme.primaryDarkBlue,
                             ),
                           ),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
-                              const SizedBox(width: 4),
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width * 0.5,
-                                child: Text(
-                                  currentAddress,
-                                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
-                                  overflow: TextOverflow.ellipsis,
+                          GestureDetector(
+                            onTap: () => mapVM.fetchLocation(force: true),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: MediaQuery.of(context).size.width * 0.5,
+                                  child: Text(
+                                    mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: mapVM.locationError != null ? Colors.red : Colors.grey,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
@@ -10,34 +12,70 @@ class MapViewModel extends ChangeNotifier {
   final LocationService _locationService = LocationService();
   
   LatLng? _currentPosition;
+  String? _currentAddress;
+  bool _isFetchingLocation = false;
+  String? _locationError;
+  
   List<UserModel> _allProviders = [];
   List<UserModel> _filteredProviders = [];
-  bool _isSearching = false;
   String _searchQuery = '';
   String? _selectedCategory;
 
   LatLng? get currentPosition => _currentPosition;
+  String? get currentAddress => _currentAddress;
+  bool get isFetchingLocation => _isFetchingLocation;
+  String? get locationError => _locationError;
   List<UserModel> get nearbyProviders => _filteredProviders;
-  bool get isSearching => _isSearching;
 
   MapViewModel() {
-    _initLocation();
+    fetchLocation();
     _listenToProviders();
   }
 
-  Future<void> _initLocation() async {
-    final position = await _locationService.getCurrentLocation();
-    if (position != null) {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      
-      // Update the user's location in Firestore if they are logged in
-      final uid = _firebaseService.currentUserId;
-      if (uid != null) {
-        await FirebaseFirestore.instance.collection('users').doc(uid).update({
-          'location': GeoPoint(position.latitude, position.longitude),
-        });
+  Future<void> fetchLocation({bool force = false}) async {
+    if (_currentPosition != null && !force) return;
+    
+    _isFetchingLocation = true;
+    _locationError = null;
+    notifyListeners();
+
+    try {
+      final position = await _locationService.getCurrentLocation();
+      if (position != null) {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        
+        // Fetch address
+        try {
+          List<Placemark> placemarks = await placemarkFromCoordinates(
+            position.latitude,
+            position.longitude,
+          );
+          if (placemarks.isNotEmpty) {
+            final place = placemarks.first;
+            _currentAddress = "${place.subLocality ?? ''}, ${place.locality ?? ''}";
+            if (_currentAddress!.startsWith(", ")) {
+              _currentAddress = _currentAddress!.substring(2);
+            }
+          }
+        } catch (e) {
+          _currentAddress = "Lat: ${position.latitude.toStringAsFixed(2)}, Lng: ${position.longitude.toStringAsFixed(2)}";
+        }
+
+        // Update the user's location in Firestore if they are logged in
+        final uid = _firebaseService.currentUserId;
+        if (uid != null) {
+          await FirebaseFirestore.instance.collection('users').doc(uid).update({
+            'location': GeoPoint(position.latitude, position.longitude),
+            'fullAddress': _currentAddress,
+          });
+        }
+      } else {
+        _locationError = "Unable to fetch location";
       }
-      
+    } catch (e) {
+      _locationError = "Error: $e";
+    } finally {
+      _isFetchingLocation = false;
       notifyListeners();
     }
   }
@@ -70,6 +108,6 @@ class MapViewModel extends ChangeNotifier {
   }
 
   Future<void> refreshLocation() async {
-    await _initLocation();
+    await fetchLocation(force: true);
   }
 }
