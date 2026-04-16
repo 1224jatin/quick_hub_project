@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
@@ -28,11 +30,25 @@ class MainCustomerScreen extends StatefulWidget {
 class _MainCustomerScreenState extends State<MainCustomerScreen> {
   int _selectedIndex = 0;
   String _currentAddress = "Fetching location...";
+  bool _isLocationFetched = false;
 
   @override
   void initState() {
     super.initState();
-    _checkLocationPermission();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isLocationFetched) {
+        _checkLocationPermission();
+      }
+    });
+  }
+  Future<bool> hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _checkLocationPermission() async {
@@ -83,36 +99,83 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
   }
 
   Future<void> _determinePosition() async {
-    try {
-      Position position = await Geolocator.getCurrentPosition();
-      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-      Placemark place = placemarks[0];
-      
-      final address = "${place.subLocality}, ${place.locality}";
-      setState(() {
-        _currentAddress = address;
-      });
+    if (_isLocationFetched) return;
+    _isLocationFetched = true;
 
-      // Save location to Firestore
-      final authVM = context.read<AuthViewModel>();
-      if (authVM.currentUser != null) {
-        final updatedUser = UserModel(
-          uid: authVM.currentUser!.uid,
-          name: authVM.currentUser!.name,
-          email: authVM.currentUser!.email,
-          role: authVM.currentUser!.role,
-          createdAt: authVM.currentUser!.createdAt,
-          location: GeoPoint(position.latitude, position.longitude),
-          city: place.locality,
-          state: place.administrativeArea,
-          isActive: authVM.currentUser!.isActive,
-          profileImage: authVM.currentUser!.profileImage,
-          fullAddress: "${place.name}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}, ${place.postalCode}",
+    print("STEP 1: Starting location fetch");
+
+    try {
+      // Check internet first
+      bool internet = await hasInternet();
+      if (!internet) {
+        setState(() => _currentAddress = "No Internet connection");
+        return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        forceAndroidLocationManager: true,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      print("STEP 2: Position fetched: ${position.latitude}, ${position.longitude}");
+
+      String address = "Lat: ${position.latitude}, Lng: ${position.longitude}";
+      Placemark? place;
+
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
         );
-        await authVM.updateProfile(updatedUser);
+
+        if (placemarks.isNotEmpty) {
+          place = placemarks.first;
+
+          address =
+          "${place.subLocality ?? ''}, ${place.locality ?? ''}";
+        }
+      } catch (e) {
+        print("PLACEMARK ERROR: $e");
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentAddress = address;
+        });
+      }
+
+      // 🔥 Firestore update (safe, non-blocking)
+      final authVM = context.read<AuthViewModel>();
+      final user = authVM.currentUser;
+
+      if (user != null) {
+        authVM.updateProfile(
+          UserModel(
+            uid: user.uid,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            location: GeoPoint(position.latitude, position.longitude),
+            city: place?.locality,
+            state: place?.administrativeArea,
+            isActive: user.isActive,
+            profileImage: user.profileImage,
+            fullAddress: place != null
+                ? "${place.name ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}, ${place.postalCode ?? ''}"
+                : address,
+          ),
+        );
       }
     } catch (e) {
-      setState(() => _currentAddress = "Address not found");
+      print("LOCATION ERROR: $e");
+
+      if (mounted) {
+        setState(() {
+          _currentAddress = "Failed to fetch location";
+        });
+      }
     }
   }
 

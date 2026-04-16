@@ -54,8 +54,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.quickhub.app',
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  userAgentPackageName: 'com.example.quick_hub_project',
                 ),
                 MarkerLayer(
                   markers: [
