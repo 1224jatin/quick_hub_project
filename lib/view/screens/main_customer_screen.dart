@@ -35,13 +35,17 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isLocationFetched) {
-        _checkLocationPermission();
+      final user = context.read<AuthViewModel>().currentUser;
+      if (user != null && user.fullAddress != null && user.fullAddress!.isNotEmpty) {
+        setState(() {
+          _currentAddress = user.fullAddress!;
+        });
       }
+      _checkLocationPermission();
     });
   }
+
   Future<bool> hasInternet() async {
     try {
       final result = await InternetAddress.lookup('google.com');
@@ -150,28 +154,32 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
       final user = authVM.currentUser;
 
       if (user != null) {
-        authVM.updateProfile(
-          UserModel(
-            uid: user.uid,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            createdAt: user.createdAt,
-            location: GeoPoint(position.latitude, position.longitude),
-            city: place?.locality,
-            state: place?.administrativeArea,
-            isActive: user.isActive,
-            profileImage: user.profileImage,
-            fullAddress: place != null
-                ? "${place.name ?? ''}, ${place.subLocality ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}, ${place.postalCode ?? ''}"
-                : address,
-          ),
+        final updatedUser = UserModel(
+          uid: user.uid,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          location: GeoPoint(position.latitude, position.longitude),
+          houseNo: place?.name ?? user.houseNo,
+          buildingName: place?.subLocality ?? user.buildingName,
+          landmark: place?.thoroughfare ?? user.landmark,
+          city: place?.locality ?? user.city,
+          state: place?.administrativeArea ?? user.state,
+          isActive: user.isActive,
+          profileImage: user.profileImage,
+          fullAddress: place != null
+              ? "${place.name ?? ''}, ${place.subLocality ?? ''}, ${place.thoroughfare ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}, ${place.postalCode ?? ''}".replaceAll(RegExp(r', , '), ', ').replaceAll(RegExp(r'^, '), '').replaceAll(RegExp(r', $'), '')
+              : address,
         );
+
+        authVM.updateProfile(updatedUser);
       }
     } catch (e) {
       print("LOCATION ERROR: $e");
 
-      if (mounted) {
+      // Silently fail if we already have an address
+      if (mounted && _currentAddress == "Fetching location...") {
         setState(() {
           _currentAddress = "Failed to fetch location";
         });
@@ -807,6 +815,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
   final _stateController = TextEditingController();
   final _ageController = TextEditingController();
   String? _gender;
+  GeoPoint? _currentLocation;
 
   @override
   void initState() {
@@ -821,6 +830,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
       _stateController.text = user.state ?? '';
       _ageController.text = user.age?.toString() ?? '';
       _gender = user.gender;
+      _currentLocation = user.location;
     }
   }
 
@@ -866,7 +876,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
         gender: _gender,
         isActive: user.isActive,
         profileImage: user.profileImage,
-        location: user.location,
+        location: _currentLocation ?? user.location,
       );
       
       final success = await authVM.updateProfile(updatedUser);
@@ -908,6 +918,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
       Placemark place = placemarks[0];
       
       setState(() {
+        _currentLocation = GeoPoint(position.latitude, position.longitude);
         _houseNoController.text = place.name ?? '';
         _buildingController.text = place.subLocality ?? '';
         _landmarkController.text = place.thoroughfare ?? '';

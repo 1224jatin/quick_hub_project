@@ -2,36 +2,38 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/firebase_service.dart';
+import '../services/auth_error_service.dart';
 
 class AuthViewModel extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _errorCode;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get errorCode => _errorCode;
 
   String _mapFirebaseAuthError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'email-already-in-use':
-        return 'This email address is already registered.';
-      case 'user-not-found':
-        return 'No user found with this email address.';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again.';
-      case 'invalid-credential':
-        return 'Invalid email or password.';
-      case 'invalid-email':
-        return 'The email address is not properly formatted.';
-      case 'user-disabled':
-        return 'This account has been disabled.';
-      case 'weak-password':
-        return 'The password provided is too weak.';
-      default:
-        return 'Authentication failed: ${e.message}';
-    }
+    return AuthErrorService.getErrorMessage(e.code, errorMessage: e.message);
+  }
+
+  String getErrorTitle(String errorCode) {
+    return AuthErrorService.getErrorTitle(errorCode);
+  }
+
+  bool isRecoverableError(String errorCode) {
+    return AuthErrorService.isRecoverable(errorCode);
+  }
+
+  bool isNetworkError(String errorCode) {
+    return AuthErrorService.isNetworkError(errorCode);
+  }
+
+  bool isRateLimitError(String errorCode) {
+    return AuthErrorService.isRateLimited(errorCode);
   }
 
   AuthViewModel() {
@@ -53,9 +55,10 @@ class AuthViewModel extends ChangeNotifier {
     _isLoading = value;
     notifyListeners();
   }
-  
-  void _setError(String? message) {
+
+  void _setError(String? message, {String? errorCode}) {
     _errorMessage = message;
+    _errorCode = errorCode;
     notifyListeners();
   }
 
@@ -79,7 +82,10 @@ class AuthViewModel extends ChangeNotifier {
     _setLoading(true);
     _setError(null);
     try {
-      final credential = await _firebaseService.registerUser(email: email, password: password);
+      final credential = await _firebaseService.registerUser(
+        email: email,
+        password: password,
+      );
       if (credential != null && credential.user != null) {
         final newUser = UserModel(
           uid: credential.user!.uid,
@@ -97,11 +103,14 @@ class AuthViewModel extends ChangeNotifier {
       }
       return false;
     } on FirebaseAuthException catch (e) {
-      _setError(_mapFirebaseAuthError(e));
+      _setError(_mapFirebaseAuthError(e), errorCode: e.code);
       _setLoading(false);
       return false;
     } catch (e) {
-      _setError("An unexpected error occurred. Please try again.");
+      _setError(
+        "An unexpected error occurred. Please try again.",
+        errorCode: 'unknown',
+      );
       _setLoading(false);
       return false;
     }
@@ -111,9 +120,14 @@ class AuthViewModel extends ChangeNotifier {
     _setLoading(true);
     _setError(null);
     try {
-      final credential = await _firebaseService.loginUser(email: email, password: password);
+      final credential = await _firebaseService.loginUser(
+        email: email,
+        password: password,
+      );
       if (credential != null && credential.user != null) {
-        final userProfile = await _firebaseService.getUserProfile(credential.user!.uid);
+        final userProfile = await _firebaseService.getUserProfile(
+          credential.user!.uid,
+        );
         if (userProfile == null) {
           _setError("User profile not found. Please contact support.");
           _setLoading(false);
@@ -125,11 +139,14 @@ class AuthViewModel extends ChangeNotifier {
       }
       return false;
     } on FirebaseAuthException catch (e) {
-      _setError(_mapFirebaseAuthError(e));
+      _setError(_mapFirebaseAuthError(e), errorCode: e.code);
       _setLoading(false);
       return false;
     } catch (e) {
-      _setError("An unexpected error occurred. Please try again.");
+      _setError(
+        "An unexpected error occurred. Please try again.",
+        errorCode: 'unknown',
+      );
       _setLoading(false);
       return false;
     }
@@ -144,7 +161,7 @@ class AuthViewModel extends ChangeNotifier {
       _setLoading(false);
       return true;
     } catch (e) {
-      _setError("Failed to update profile: $e");
+      _setError("Failed to update profile: $e", errorCode: 'update-failed');
       _setLoading(false);
       return false;
     }
@@ -157,20 +174,26 @@ class AuthViewModel extends ChangeNotifier {
       // Security check: Only send if email exists in our DB
       final exists = await _firebaseService.doesEmailExist(email);
       if (!exists) {
-        _setError("No account found with this email.");
+        _setError(
+          "No account found with this email.",
+          errorCode: 'user-not-found',
+        );
         _setLoading(false);
         return false;
       }
-      
+
       await _firebaseService.sendPasswordResetEmail(email);
       _setLoading(false);
       return true;
     } on FirebaseAuthException catch (e) {
-      _setError(_mapFirebaseAuthError(e));
+      _setError(_mapFirebaseAuthError(e), errorCode: e.code);
       _setLoading(false);
       return false;
     } catch (e) {
-      _setError("An unexpected error occurred. Please try again.");
+      _setError(
+        "An unexpected error occurred. Please try again.",
+        errorCode: 'unknown',
+      );
       _setLoading(false);
       return false;
     }

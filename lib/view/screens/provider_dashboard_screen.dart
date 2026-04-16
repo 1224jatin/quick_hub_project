@@ -17,6 +17,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -101,12 +102,36 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
     if (user == null) return;
     
     setState(() => _isLoading = true);
+    GeoPoint? updatedLocation = user.location;
+    
+    if (_isActive) {
+      try {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (serviceEnabled && (permission == LocationPermission.whileInUse || permission == LocationPermission.always)) {
+          Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+          updatedLocation = GeoPoint(position.latitude, position.longitude);
+        }
+      } catch (e) {
+        debugPrint("Location error: $e");
+      }
+    }
+
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      final updateData = <String, dynamic>{
         'bio': _bioController.text.trim(),
         'serviceType': _selectedCategory,
         'isActive': _isActive,
-      });
+      };
+      if (updatedLocation != null) {
+        updateData['location'] = updatedLocation;
+      }
+      
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updateData);
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!')));
       }
@@ -136,11 +161,29 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                 subtitle: const Text('Turn off to hide your profile from the consumer map.'),
                 value: _isActive,
                 activeColor: Colors.green,
-                onChanged: (val) {
+                onChanged: (val) async {
                   setState(() => _isActive = val);
                   final user = context.read<AuthViewModel>().currentUser;
                   if (user != null) {
-                    FirebaseFirestore.instance.collection('users').doc(user.uid).update({'isActive': val});
+                    GeoPoint? loc = user.location;
+                    if (val) {
+                      try {
+                        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                        LocationPermission permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                          permission = await Geolocator.requestPermission();
+                        }
+                        if (serviceEnabled && (permission == LocationPermission.whileInUse || permission == LocationPermission.always)) {
+                          Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+                          loc = GeoPoint(position.latitude, position.longitude);
+                        }
+                      } catch (e) {
+                        debugPrint("Location error: $e");
+                      }
+                    }
+                    final updateData = <String, dynamic>{'isActive': val};
+                    if (loc != null) updateData['location'] = loc;
+                    await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updateData);
                   }
                 },
               ),
