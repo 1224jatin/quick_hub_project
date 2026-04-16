@@ -24,6 +24,8 @@ class RequestViewModel extends ChangeNotifier {
     required String providerId,
     required String serviceType,
     required GeoPoint location,
+    DateTime? scheduledDate,
+    String? description,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -37,21 +39,20 @@ class RequestViewModel extends ChangeNotifier {
         status: RequestStatus.pending,
         timestamp: DateTime.now(),
         location: location,
+        scheduledDate: scheduledDate,
+        description: description,
       );
       await _firebaseService.createServiceRequest(request);
     } catch (e) {
       print('Error sending request: $e');
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> acceptRequest(String requestId) async {
-    await _firebaseService.updateRequestStatus(requestId, RequestStatus.accepted);
-  }
-
-  Future<void> declineRequest(String requestId) async {
-    await _firebaseService.updateRequestStatus(requestId, RequestStatus.declined);
+  Future<void> updateRequestStatus(String requestId, RequestStatus status) async {
+    await _firebaseService.updateRequestStatus(requestId, status);
   }
 }

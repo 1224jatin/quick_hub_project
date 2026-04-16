@@ -88,7 +88,7 @@ class AuthViewModel extends ChangeNotifier {
           role: role,
           createdAt: DateTime.now(),
           serviceType: serviceType,
-          isActive: role == UserRole.provider ? false : true,
+          isActive: true, // Defaulting to true for simplicity in testing
         );
         await _firebaseService.saveUserProfile(newUser);
         _currentUser = newUser;
@@ -130,6 +130,21 @@ class AuthViewModel extends ChangeNotifier {
       return false;
     } catch (e) {
       _setError("An unexpected error occurred. Please try again.");
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile(UserModel updatedUser) async {
+    _setLoading(true);
+    _setError(null);
+    try {
+      await _firebaseService.saveUserProfile(updatedUser);
+      _currentUser = updatedUser;
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError("Failed to update profile: $e");
       _setLoading(false);
       return false;
     }

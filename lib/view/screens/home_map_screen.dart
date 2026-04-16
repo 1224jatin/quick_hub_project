@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../services/firebase_service.dart';
 import '../../models/notification_model.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'provider_details_screen.dart';
 
 class HomeMapScreen extends StatefulWidget {
   const HomeMapScreen({super.key});
@@ -25,255 +26,129 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MapViewModel>().fetchProviders();
-    });
+    // No need to manually fetch here, MapViewModel does it in its constructor and listens to changes
   }
 
-  void _showProviderDetails(UserModel provider) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  void _navigateToProviderDetails(UserModel provider) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProviderDetailsScreen(provider: provider),
       ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                child: Icon(
-                  Icons.person,
-                  size: 40,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                provider.name,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                provider.serviceType ?? 'General Service',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.grey.shade600,
-                    ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.star, color: Colors.amber.shade600, size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${provider.rating} (${provider.reviewCount} reviews)',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text('•'),
-                  const SizedBox(width: 16),
-                  Text(
-                    '\$${provider.hourlyRate ?? 0}/hr',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (provider.bio != null) ...[
-                Text(
-                  provider.bio!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 24),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _sendRequest(provider),
-                  child: const Text('Send Service Request'),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.directions),
-                  onPressed: () async {
-                    if (provider.location != null) {
-                      final url = Uri.parse('google.navigation:q=${provider.location!.latitude},${provider.location!.longitude}&mode=d');
-                      try {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      } catch (e) {
-                        final webUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${provider.location!.latitude},${provider.location!.longitude}');
-                        await launchUrl(webUrl, mode: LaunchMode.externalApplication);
-                      }
-                    }
-                  },
-                  label: const Text('Navigate to Provider'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
-  }
-
-  void _sendRequest(UserModel provider) {
-    if (provider.location == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Provider location is unknown!')),
-      );
-      return;
-    }
-    
-    final consumer = context.read<AuthViewModel>().currentUser;
-    if (consumer != null) {
-      context.read<RequestViewModel>().sendRequest(
-            consumerId: consumer.uid,
-            providerId: provider.uid,
-            serviceType: provider.serviceType ?? 'General',
-            location: GeoPoint(provider.location!.latitude, provider.location!.longitude),
-          );
-          
-      // Send notification to Provider
-      final notif = NotificationModel(
-        notificationId: const Uuid().v4(),
-        recipientId: provider.uid,
-        title: 'New Service Request',
-        body: '${consumer.name} requested a ${provider.serviceType ?? 'General'} service.',
-        timestamp: DateTime.now(),
-      );
-      FirebaseService().saveNotification(notif);
-
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Service request sent!')),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Consumer<MapViewModel>(
-            builder: (context, mapViewModel, child) {
-              final position = mapViewModel.currentPosition ?? const LatLng(37.7749, -122.4194);
-              
-              return FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: position,
-                  initialZoom: 13.0,
+    return Stack(
+      children: [
+        Consumer<MapViewModel>(
+          builder: (context, mapViewModel, child) {
+            final position = mapViewModel.currentPosition ?? const LatLng(37.7749, -122.4194);
+            
+            return FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: position,
+                initialZoom: 13.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.quickhub.app',
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.quickhub.app',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      if (mapViewModel.currentPosition != null)
-                        Marker(
-                          point: mapViewModel.currentPosition!,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(
-                            Icons.my_location,
-                            color: Colors.blue,
-                            size: 40,
+                MarkerLayer(
+                  markers: [
+                    if (mapViewModel.currentPosition != null)
+                      Marker(
+                        point: mapViewModel.currentPosition!,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(
+                          Icons.my_location,
+                          color: Colors.blue,
+                          size: 40,
+                        ),
+                      ),
+                    ...mapViewModel.nearbyProviders.map((provider) {
+                      if (provider.location == null) return null;
+                      return Marker(
+                        point: LatLng(provider.location!.latitude, provider.location!.longitude),
+                        width: 50,
+                        height: 50,
+                        child: GestureDetector(
+                          onTap: () => _navigateToProviderDetails(provider),
+                          child: CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            child: const Icon(Icons.build, color: Colors.white, size: 20),
                           ),
                         ),
-                      ...mapViewModel.nearbyProviders.map((provider) {
-                        if (provider.location == null) return null;
-                        return Marker(
-                          point: LatLng(provider.location!.latitude, provider.location!.longitude),
-                          width: 50,
-                          height: 50,
-                          child: GestureDetector(
-                            onTap: () => _showProviderDetails(provider),
-                            child: CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              child: const Icon(Icons.build, color: Colors.white, size: 20),
-                            ),
-                          ),
-                        );
-                      }).whereType<Marker>(),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-          
-          // Simplified top bar for the map tab
-          Positioned(
-            top: 50,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.search, color: Colors.grey),
-                  SizedBox(width: 10),
-                  Text('Search for services...', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 16), // Adjust if needed to not overlap with bottom nav
-        child: FloatingActionButton(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          mini: true,
-          child: const Icon(Icons.my_location),
-          onPressed: () {
-            final position = context.read<MapViewModel>().currentPosition;
-            if (position != null) {
-              _mapController.move(position, 15.0);
-            }
+                      );
+                    }).whereType<Marker>(),
+                  ],
+                ),
+              ],
+            );
           },
         ),
-      ),
+        
+        // Simplified top bar for the map tab
+        Positioned(
+          top: 50,
+          left: 20,
+          right: 20,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.search, color: Colors.grey),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    onChanged: (value) => context.read<MapViewModel>().setSearchQuery(value),
+                    decoration: const InputDecoration(
+                      hintText: 'Search for services...',
+                      hintStyle: TextStyle(color: Colors.grey),
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Manually positioned Floating Action Button
+        Positioned(
+          right: 20,
+          bottom: 120, // Positioned above the bottom navigation bar
+          child: FloatingActionButton(
+            heroTag: 'map_fab',
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            mini: true,
+            child: const Icon(Icons.my_location),
+            onPressed: () {
+              final position = context.read<MapViewModel>().currentPosition;
+              if (position != null) {
+                _mapController.move(position, 15.0);
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 }

@@ -9,6 +9,8 @@ import '../../models/complaint_model.dart';
 import '../../models/transaction_model.dart';
 import '../widgets/animated_bottom_nav.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:shimmer/shimmer.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -57,6 +59,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 }
 
+Widget _buildShimmerListItem() {
+  return Shimmer.fromColors(
+    baseColor: Colors.grey[300]!,
+    highlightColor: Colors.grey[100]!,
+    child: Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        leading: const CircleAvatar(backgroundColor: Colors.white),
+        title: Container(width: double.infinity, height: 16, color: Colors.white),
+        subtitle: Container(width: 150, height: 14, color: Colors.white),
+      ),
+    ),
+  );
+}
+
 class RequestsAdminTab extends StatelessWidget {
   const RequestsAdminTab({super.key});
 
@@ -91,7 +108,12 @@ class RequestsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('requests').orderBy('timestamp', descending: true).snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
         final requests = snapshot.data!.docs.map((doc) => ServiceRequestModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -133,7 +155,12 @@ class RequestsAdminTab extends StatelessWidget {
           .where('isVerified', isEqualTo: false)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return ListView.builder(
+             itemCount: 5,
+             itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
         final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 
         if (providers.isEmpty) return const Center(child: Text('No pending provider requests'));
@@ -288,7 +315,12 @@ class UsersAdminTab extends StatelessWidget {
           .where('isVerified', isEqualTo: true)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
         final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 
         if (providers.isEmpty) return const Center(child: Text('No active providers'));
@@ -301,15 +333,37 @@ class UsersAdminTab extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.engineering)),
+                leading: Stack(
+                  children: [
+                    const CircleAvatar(child: Icon(Icons.engineering)),
+                    if (provider.isPremium)
+                       const Positioned(
+                         bottom: 0,
+                         right: 0,
+                         child: Icon(Icons.star, color: Colors.amber, size: 14)
+                       )
+                  ],
+                ),
                 title: Text(provider.name),
                 subtitle: Text(provider.serviceType ?? 'No Service'),
-                trailing: Switch(
-                  value: provider.isActive,
-                  onChanged: (val) {
-                    FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
-                  },
-                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
+                      icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
+                      onPressed: () {
+                         FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
+                      }
+                    ),
+                    Switch(
+                      value: provider.isActive,
+                      onChanged: (val) {
+                        FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
+                      },
+                    ),
+                  ],
+                )
               ),
             );
           },
@@ -325,7 +379,12 @@ class UsersAdminTab extends StatelessWidget {
           .where('role', isEqualTo: 'consumer')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
         final consumers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 
         if (consumers.isEmpty) return const Center(child: Text('No consumers enrolled'));
@@ -364,7 +423,20 @@ class PaymentsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return Center(
+            child: Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                height: 400,
+                width: double.infinity,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          );
+        }
         
         double totalRevenue = 0;
         double totalCommission = 0;
@@ -386,20 +458,52 @@ class PaymentsAdminTab extends StatelessWidget {
           }
         }
 
-        return Padding(
+        return ListView(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildStatCard('Total Platform Revenue', '\$${totalRevenue.toStringAsFixed(2)}', Colors.blue, 'Gross volume from consumers'),
-              const SizedBox(height: 12),
-              _buildStatCard('Retained Commission', '\$${totalCommission.toStringAsFixed(2)}', Colors.green, 'Platform earnings (10%)'),
-              const SizedBox(height: 12),
-              _buildStatCard('Provider Payouts Due', '\$${payoutsDue.toStringAsFixed(2)}', Colors.orange, 'Funds pending transfer to providers'),
-              const SizedBox(height: 12),
-              _buildStatCard('Payouts Complete', '\$${totalPayoutCompleted.toStringAsFixed(2)}', Colors.purple, 'Total funds disbursed'),
-            ],
-          ),
+          children: [
+             const Text("Financial Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+             const SizedBox(height: 20),
+             SizedBox(
+               height: 200,
+               child: Stack(
+                 alignment: Alignment.center,
+                 children: [
+                   PieChart(
+                     PieChartData(
+                       sectionsSpace: 2,
+                       centerSpaceRadius: 60,
+                       sections: [
+                         PieChartSectionData(
+                           value: totalCommission,
+                           color: Colors.green,
+                           title: '10%\nCommission',
+                           radius: 40,
+                           titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                         ),
+                         PieChartSectionData(
+                           value: totalPayoutCompleted + payoutsDue,
+                           color: Colors.blue,
+                           title: '90%\nProviders',
+                           radius: 40,
+                           titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                         ),
+                       ],
+                     )
+                   ),
+                   const Text("Revenue\nSplit", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                 ],
+               ),
+             ),
+             const SizedBox(height: 30),
+            _buildStatCard('Total Platform Revenue', '\$${totalRevenue.toStringAsFixed(2)}', Colors.blue, 'Gross volume from consumers'),
+            const SizedBox(height: 12),
+            _buildStatCard('Retained Commission', '\$${totalCommission.toStringAsFixed(2)}', Colors.green, 'Platform earnings (10%)'),
+            const SizedBox(height: 12),
+            _buildStatCard('Provider Payouts Due', '\$${payoutsDue.toStringAsFixed(2)}', Colors.orange, 'Funds pending transfer to providers'),
+            const SizedBox(height: 12),
+            _buildStatCard('Payouts Complete', '\$${totalPayoutCompleted.toStringAsFixed(2)}', Colors.purple, 'Total funds disbursed'),
+            const SizedBox(height: 100),
+          ],
         );
       },
     );
@@ -441,7 +545,20 @@ class StatsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('requests').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return Center(
+            child: Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                height: 400,
+                width: double.infinity,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          );
+        }
         
         int total = 0;
         int completed = 0;
@@ -457,22 +574,58 @@ class StatsAdminTab extends StatelessWidget {
           else pending++;
         }
 
-        return Padding(
+        return ListView(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text("App Performance Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              _buildMetricCard("Total Requests", "$total", Icons.layers),
-              const SizedBox(height: 10),
-              _buildMetricCard("Completed Services", "$completed", Icons.check_circle_outline, color: Colors.green),
-              const SizedBox(height: 10),
-              _buildMetricCard("Pending/In-Progress", "$pending", Icons.hourglass_empty, color: Colors.orange),
-              const SizedBox(height: 10),
-              _buildMetricCard("Cancelled/Declined", "$cancelled", Icons.cancel_outlined, color: Colors.red),
-            ],
-          ),
+          children: [
+            const Text("App Performance Analytics", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            if (total > 0)
+              SizedBox(
+                height: 150,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceEvenly,
+                    maxY: total.toDouble(),
+                    barTouchData: BarTouchData(enabled: false),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (val, meta) {
+                            switch (val.toInt()) {
+                              case 0: return const Text('Complete');
+                              case 1: return const Text('Pending');
+                              case 2: return const Text('Cancel');
+                              default: return const Text('');
+                            }
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barGroups: [
+                      BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: completed.toDouble(), color: Colors.green, width: 30, borderRadius: BorderRadius.circular(4))]),
+                      BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: pending.toDouble(), color: Colors.orange, width: 30, borderRadius: BorderRadius.circular(4))]),
+                      BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: cancelled.toDouble(), color: Colors.red, width: 30, borderRadius: BorderRadius.circular(4))]),
+                    ],
+                  )
+                ),
+              ),
+            const SizedBox(height: 30),
+            _buildMetricCard("Total Requests", "$total", Icons.layers),
+            const SizedBox(height: 10),
+            _buildMetricCard("Completed Services", "$completed", Icons.check_circle_outline, color: Colors.green),
+            const SizedBox(height: 10),
+            _buildMetricCard("Pending/In-Progress", "$pending", Icons.hourglass_empty, color: Colors.orange),
+            const SizedBox(height: 10),
+            _buildMetricCard("Cancelled/Declined", "$cancelled", Icons.cancel_outlined, color: Colors.red),
+            const SizedBox(height: 100),
+          ],
         );
       },
     );
@@ -501,7 +654,12 @@ class ComplaintsAdminTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('complaints').orderBy('timestamp', descending: true).snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
         
         final complaints = snapshot.data!.docs.map((doc) => ComplaintModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 

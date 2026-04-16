@@ -17,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void _handleLogin(BuildContext context) async {
+  void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       final authVM = context.read<AuthViewModel>();
       final success = await authVM.loginUser(
@@ -46,11 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showForgotPasswordDialog(BuildContext context) {
+  void _showForgotPasswordDialog() {
     final TextEditingController resetEmailController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Reset Password"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -68,30 +68,37 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Cancel"),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(100, 40)),
-            onPressed: () async {
-              final email = resetEmailController.text.trim();
-              if (email.isNotEmpty) {
-                final authVM = context.read<AuthViewModel>();
-                final success = await authVM.sendPasswordResetEmail(email);
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(success 
-                        ? "Reset link sent! Check your email." 
-                        : (authVM.errorMessage ?? "Failed to send reset link.")),
-                      backgroundColor: success ? Colors.green : Colors.redAccent,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text("Send"),
+          Consumer<AuthViewModel>(
+            builder: (context, authVM, child) {
+              return ElevatedButton(
+                style: ElevatedButton.styleFrom(minimumSize: const Size(100, 40)),
+                onPressed: authVM.isLoading ? null : () async {
+                  final email = resetEmailController.text.trim();
+                  if (email.isNotEmpty) {
+                    final success = await authVM.sendPasswordResetEmail(email);
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                    if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(
+                          content: Text(success 
+                            ? "Reset link sent! Check your email." 
+                            : (authVM.errorMessage ?? "Failed to send reset link.")),
+                          backgroundColor: success ? Colors.green : Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: authVM.isLoading 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text("Send"),
+              );
+            }
           ),
         ],
       ),
@@ -172,7 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () => _showForgotPasswordDialog(context),
+                        onPressed: () => _showForgotPasswordDialog(),
                         child: Text(
                           "Forgot password?",
                           style: TextStyle(
@@ -190,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           return const CircularProgressIndicator();
                         }
                         return ElevatedButton(
-                          onPressed: () => _handleLogin(context),
+                          onPressed: () => _handleLogin(),
                           child: const Text("Log in"),
                         );
                       },

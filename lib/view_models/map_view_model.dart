@@ -10,14 +10,19 @@ class MapViewModel extends ChangeNotifier {
   final LocationService _locationService = LocationService();
   
   LatLng? _currentPosition;
-  List<UserModel> _nearbyProviders = [];
+  List<UserModel> _allProviders = [];
+  List<UserModel> _filteredProviders = [];
+  bool _isSearching = false;
+  String _searchQuery = '';
+  String? _selectedCategory;
 
   LatLng? get currentPosition => _currentPosition;
-  List<UserModel> get nearbyProviders => _nearbyProviders;
+  List<UserModel> get nearbyProviders => _filteredProviders;
+  bool get isSearching => _isSearching;
 
   MapViewModel() {
     _initLocation();
-    fetchProviders();
+    _listenToProviders();
   }
 
   Future<void> _initLocation() async {
@@ -37,10 +42,34 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  void fetchProviders({String? serviceType}) {
-    _firebaseService.getNearbyActiveProviders(serviceType: serviceType).listen((providers) {
-      _nearbyProviders = providers;
-      notifyListeners();
+  void _listenToProviders() {
+    _firebaseService.getNearbyActiveProviders().listen((providers) {
+      _allProviders = providers;
+      _applyFilters();
     });
+  }
+
+  void setSearchQuery(String query) {
+    _searchQuery = query.toLowerCase();
+    _applyFilters();
+  }
+
+  void setCategory(String? category) {
+    _selectedCategory = category;
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    _filteredProviders = _allProviders.where((provider) {
+      final matchesQuery = provider.name.toLowerCase().contains(_searchQuery) || 
+                          (provider.serviceType?.toLowerCase().contains(_searchQuery) ?? false);
+      final matchesCategory = _selectedCategory == null || provider.serviceType == _selectedCategory;
+      return matchesQuery && matchesCategory;
+    }).toList();
+    notifyListeners();
+  }
+
+  Future<void> refreshLocation() async {
+    await _initLocation();
   }
 }

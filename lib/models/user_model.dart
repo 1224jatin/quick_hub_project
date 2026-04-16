@@ -19,6 +19,7 @@ class UserModel {
   final int reviewCount;
   final bool isVerified;
   final bool isActive;
+  final bool isPremium;
   final GeoPoint? location;
   
   // New Identity fields
@@ -33,6 +34,10 @@ class UserModel {
   // Location fields
   final String? state;
   final String? city;
+  final String? houseNo;
+  final String? buildingName;
+  final String? landmark;
+  final String? fullAddress;
 
   UserModel({
     required this.uid,
@@ -49,6 +54,7 @@ class UserModel {
     this.reviewCount = 0,
     this.isVerified = false,
     this.isActive = false,
+    this.isPremium = false,
     this.location,
     this.gender,
     this.age,
@@ -59,6 +65,10 @@ class UserModel {
     this.preferredLanguage,
     this.state,
     this.city,
+    this.houseNo,
+    this.buildingName,
+    this.landmark,
+    this.fullAddress,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -90,6 +100,7 @@ class UserModel {
       reviewCount: json['reviewCount'] as int? ?? 0,
       isVerified: json['isVerified'] as bool? ?? false,
       isActive: json['isActive'] as bool? ?? false,
+      isPremium: json['isPremium'] as bool? ?? false,
       location: json['location'] as GeoPoint?,
       gender: json['gender'] as String?,
       age: json['age'] as int?,
@@ -100,6 +111,10 @@ class UserModel {
       preferredLanguage: json['preferredLanguage'] as String?,
       state: json['state'] as String?,
       city: json['city'] as String?,
+      houseNo: json['houseNo'] as String?,
+      buildingName: json['buildingName'] as String?,
+      landmark: json['landmark'] as String?,
+      fullAddress: json['fullAddress'] as String?,
     );
   }
 
@@ -131,6 +146,7 @@ class UserModel {
       'reviewCount': reviewCount,
       'isVerified': isVerified,
       'isActive': isActive,
+      'isPremium': isPremium,
       'location': location,
       'gender': gender,
       'age': age,
@@ -141,6 +157,10 @@ class UserModel {
       'preferredLanguage': preferredLanguage,
       'state': state,
       'city': city,
+      'houseNo': houseNo,
+      'buildingName': buildingName,
+      'landmark': landmark,
+      'fullAddress': fullAddress,
     };
   }
 }
