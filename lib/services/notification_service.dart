@@ -60,7 +60,7 @@ class NotificationService {
               body: message.notification!.body ?? '',
               timestamp: DateTime.now(),
               dataPayload: message.data,
-            );
+             );
             await _firebaseService.saveNotification(notifModel);
           }
         }

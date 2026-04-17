@@ -94,8 +94,8 @@ class RequestsAdminTab extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _buildServiceRequests(),
-                _buildPendingProviders(context),
+                const ServiceRequestsList(),
+                const PendingProvidersList(),
               ],
             ),
           ),
@@ -103,8 +103,13 @@ class RequestsAdminTab extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildServiceRequests() {
+class ServiceRequestsList extends StatelessWidget {
+  const ServiceRequestsList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('requests').orderBy('timestamp', descending: true).snapshots(),
       builder: (context, snapshot) {
@@ -115,39 +120,175 @@ class RequestsAdminTab extends StatelessWidget {
           );
         }
         final requests = snapshot.data!.docs.map((doc) => ServiceRequestModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
+        
+        if (requests.isEmpty) return const Center(child: Text('No service requests found.'));
+
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ListTile(
-                title: Text('${request.serviceType} Request'),
-                subtitle: Text('Status: ${request.status.name.toUpperCase()}'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(DateFormat('MMM dd').format(request.timestamp)),
-                    if (request.status == RequestStatus.pending || request.status == RequestStatus.accepted)
-                      IconButton(
-                        icon: const Icon(Icons.cancel, color: Colors.red),
-                        onPressed: () {
-                          FirebaseFirestore.instance.collection('requests').doc(request.requestId).update({'status': 'cancelled'});
-                        },
-                      ),
-                  ],
-                ),
-                leading: const CircleAvatar(child: Icon(Icons.build)),
-              ),
-            );
+            return RequestAdminCard(request: request);
           },
         );
       },
     );
   }
+}
 
-  Widget _buildPendingProviders(BuildContext context) {
+class RequestAdminCard extends StatelessWidget {
+  final ServiceRequestModel request;
+  const RequestAdminCard({super.key, required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: ExpansionTile(
+        leading: CircleAvatar(
+          backgroundColor: _getStatusColor(request.status).withOpacity(0.1),
+          child: Icon(_getServiceIcon(request.serviceType), color: _getStatusColor(request.status)),
+        ),
+        title: Text(request.serviceType, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('Status: ${request.status.name.toUpperCase()}', style: TextStyle(color: _getStatusColor(request.status), fontSize: 12)),
+        trailing: Text(DateFormat('MMM dd').format(request.timestamp), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(),
+                const SizedBox(height: 8),
+                _buildUserDetailRow(context, 'Customer', request.consumerId),
+                const SizedBox(height: 8),
+                _buildUserDetailRow(context, 'Provider', request.providerId),
+                const SizedBox(height: 12),
+                const Text('Request Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.description, 'Task', request.description ?? 'No description provided'),
+                _buildInfoRow(Icons.access_time, 'Time', DateFormat('MMM dd, yyyy • hh:mm a').format(request.timestamp)),
+                if (request.agreedPrice != null)
+                  _buildInfoRow(Icons.payments, 'Price', '\$${request.agreedPrice!.toStringAsFixed(2)}'),
+                _buildInfoRow(Icons.payment, 'Payment', request.paymentStatus.toUpperCase()),
+                const SizedBox(height: 16),
+                if (request.status == RequestStatus.pending || request.status == RequestStatus.accepted)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        FirebaseFirestore.instance.collection('requests').doc(request.requestId).update({'status': 'cancelled'});
+                      },
+                      icon: const Icon(Icons.cancel, size: 18),
+                      label: const Text('Cancel Request'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                    ),
+                  ),
+                if (request.status == RequestStatus.cancelled)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showDeleteConfirmation(context),
+                      icon: const Icon(Icons.delete_forever, size: 18, color: Colors.red),
+                      label: const Text('Delete Permanently', style: TextStyle(color: Colors.red)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Request?"),
+        content: const Text("This action cannot be undone. Are you sure you want to permanently delete this cancelled request from the database?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Keep it")),
+          ElevatedButton(
+            onPressed: () async {
+              await FirebaseFirestore.instance.collection('requests').doc(request.requestId).delete();
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request deleted successfully.")));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Yes, Delete"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserDetailRow(BuildContext context, String label, String userId) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Text('Loading...');
+        if (!snapshot.data!.exists) return Text('$label: Unknown User');
+        
+        final user = UserModel.fromJson(snapshot.data!.data() as Map<String, dynamic>);
+        return Row(
+          children: [
+            Text('$label: ', style: const TextStyle(color: Colors.grey)),
+            Expanded(child: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 8),
+            Text(user.email, style: const TextStyle(fontSize: 11, color: Colors.blue)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: Colors.grey),
+          const SizedBox(width: 8),
+          Text('$label: ', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(RequestStatus status) {
+    switch (status) {
+      case RequestStatus.accepted: return Colors.green;
+      case RequestStatus.inProgress: return Colors.blue;
+      case RequestStatus.completed: return Colors.orange;
+      case RequestStatus.declined:
+      case RequestStatus.cancelled: return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _getServiceIcon(String type) {
+    type = type.toLowerCase();
+    if (type.contains('plumb')) return Icons.plumbing;
+    if (type.contains('elect')) return Icons.bolt;
+    if (type.contains('clean')) return Icons.cleaning_services;
+    if (type.contains('mech')) return Icons.build;
+    if (type.contains('paint')) return Icons.format_paint;
+    return Icons.settings;
+  }
+}
+
+class PendingProvidersList extends StatelessWidget {
+  const PendingProvidersList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -235,7 +376,6 @@ class RequestsAdminTab extends StatelessWidget {
               }
 
               try {
-                // 1. Create official Firebase Auth account for the provider
                 final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
                   email: provider.email,
                   password: password,
@@ -243,16 +383,12 @@ class RequestsAdminTab extends StatelessWidget {
 
                 final newUid = userCredential.user!.uid;
 
-                // 2. Map existing provider data to a new map and update keys
                 final providerData = provider.toJson();
                 providerData['uid'] = newUid;
                 providerData['isVerified'] = true;
                 providerData['isActive'] = true;
 
-                // 3. Create a NEW document with the actual Auth UID as the Document ID
                 await FirebaseFirestore.instance.collection('users').doc(newUid).set(providerData);
-
-                // 4. Delete the old document that had the randomly generated ID
                 await FirebaseFirestore.instance.collection('users').doc(provider.uid).delete();
                 
                 if (context.mounted) {
@@ -297,78 +433,13 @@ class UsersAdminTab extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _buildProvidersList(),
+                const ActiveProvidersList(),
                 _buildConsumersList(),
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildProvidersList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'provider')
-          .where('isVerified', isEqualTo: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return ListView.builder(
-            itemCount: 5,
-            itemBuilder: (context, index) => _buildShimmerListItem(),
-          );
-        }
-        final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
-
-        if (providers.isEmpty) return const Center(child: Text('No active providers'));
-
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 100),
-          itemCount: providers.length,
-          itemBuilder: (context, index) {
-            final provider = providers[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ListTile(
-                leading: Stack(
-                  children: [
-                    const CircleAvatar(child: Icon(Icons.engineering)),
-                    if (provider.isPremium)
-                       const Positioned(
-                         bottom: 0,
-                         right: 0,
-                         child: Icon(Icons.star, color: Colors.amber, size: 14)
-                       )
-                  ],
-                ),
-                title: Text(provider.name),
-                subtitle: Text(provider.serviceType ?? 'No Service'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
-                      icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
-                      onPressed: () {
-                         FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
-                      }
-                    ),
-                    Switch(
-                      value: provider.isActive,
-                      onChanged: (val) {
-                        FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
-                      },
-                    ),
-                  ],
-                )
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
@@ -406,6 +477,232 @@ class UsersAdminTab extends StatelessWidget {
                     FirebaseFirestore.instance.collection('users').doc(consumer.uid).update({'isActive': val});
                   },
                 ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class ActiveProvidersList extends StatelessWidget {
+  const ActiveProvidersList({super.key});
+
+  void _showProviderDetails(BuildContext context, UserModel provider) {
+    final nameController = TextEditingController(text: provider.name);
+    final ageController = TextEditingController(text: provider.age?.toString() ?? '');
+    final bioController = TextEditingController(text: provider.bio ?? '');
+    final aadhaarController = TextEditingController(text: provider.aadhaarNumber ?? '');
+    final panController = TextEditingController(text: provider.panNumber ?? '');
+    final hourlyRateController = TextEditingController(text: provider.hourlyRate?.toString() ?? '');
+    String? gender = provider.gender;
+    String? preferredLanguage = provider.preferredLanguage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) => SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    child: const Icon(Icons.engineering, size: 50, color: Colors.blue),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(provider.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                ),
+                Center(
+                  child: Text(provider.serviceType ?? 'General Provider', style: const TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(height: 24),
+                const Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Divider(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ageController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: ['Male', 'Female', 'Other'].contains(gender) ? gender : null,
+                        decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
+                        items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                        onChanged: (val) => setModalState(() => gender = val),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: aadhaarController,
+                  decoration: const InputDecoration(labelText: 'Aadhaar Number', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: panController,
+                  decoration: const InputDecoration(labelText: 'PAN Number', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: ['English', 'Hindi', 'Punjabi', 'Other'].contains(preferredLanguage) ? preferredLanguage : null,
+                  decoration: const InputDecoration(labelText: 'Language', border: OutlineInputBorder()),
+                  items: ['English', 'Hindi', 'Punjabi', 'Other'].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                  onChanged: (val) => setModalState(() => preferredLanguage = val),
+                ),
+                const SizedBox(height: 24),
+                const Text('Professional Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Divider(),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: hourlyRateController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Hourly Rate ($)', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: bioController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Bio', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final updatedUser = UserModel(
+                        uid: provider.uid,
+                        name: nameController.text.trim(),
+                        email: provider.email,
+                        role: provider.role,
+                        createdAt: provider.createdAt,
+                        age: int.tryParse(ageController.text),
+                        gender: gender,
+                        aadhaarNumber: aadhaarController.text.trim(),
+                        panNumber: panController.text.trim(),
+                        preferredLanguage: preferredLanguage,
+                        hourlyRate: double.tryParse(hourlyRateController.text),
+                        bio: bioController.text.trim(),
+                        serviceType: provider.serviceType,
+                        rating: provider.rating,
+                        reviewCount: provider.reviewCount,
+                        isVerified: provider.isVerified,
+                        isActive: provider.isActive,
+                        isPremium: provider.isPremium,
+                        location: provider.location,
+                        fullAddress: provider.fullAddress,
+                        city: provider.city,
+                        state: provider.state,
+                      );
+
+                      await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(provider.uid)
+                          .update(updatedUser.toJson());
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Provider details updated successfully!')),
+                        );
+                      }
+                    },
+                    child: const Text('Update Provider Details'),
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'provider')
+          .where('isVerified', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return ListView.builder(
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildShimmerListItem(),
+          );
+        }
+        final providers = snapshot.data!.docs.map((doc) => UserModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
+
+        if (providers.isEmpty) return const Center(child: Text('No active providers'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 100),
+          itemCount: providers.length,
+          itemBuilder: (context, index) {
+            final provider = providers[index];
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ListTile(
+                onTap: () => _showProviderDetails(context, provider),
+                leading: Stack(
+                  children: [
+                    const CircleAvatar(child: Icon(Icons.engineering)),
+                    if (provider.isPremium)
+                       const Positioned(
+                         bottom: 0,
+                         right: 0,
+                         child: Icon(Icons.star, color: Colors.amber, size: 14)
+                       )
+                  ],
+                ),
+                title: Text(provider.name),
+                subtitle: Text(provider.serviceType ?? 'No Service'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: provider.isPremium ? "Remove Premium" : "Make Premium",
+                      icon: Icon(Icons.workspace_premium, color: provider.isPremium ? Colors.amber : Colors.grey),
+                      onPressed: () {
+                         FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isPremium': !provider.isPremium});
+                      }
+                    ),
+                    Switch(
+                      value: provider.isActive,
+                      onChanged: (val) {
+                        FirebaseFirestore.instance.collection('users').doc(provider.uid).update({'isActive': val});
+                      },
+                    ),
+                  ],
+                )
               ),
             );
           },

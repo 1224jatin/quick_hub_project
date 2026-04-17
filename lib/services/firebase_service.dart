@@ -5,7 +5,6 @@ import '../models/user_model.dart';
 import '../models/service_request_model.dart';
 import '../models/review_model.dart';
 import '../models/notification_model.dart';
-import '../models/notification_model.dart';
 import '../models/service_category_model.dart';
 import '../models/complaint_model.dart';
 
@@ -82,19 +81,22 @@ class FirebaseService {
   }
 
   Stream<List<ServiceRequestModel>> streamProviderRequests(String providerId) {
+    // Note: This requires an index (providerId: ASC, timestamp: DESC/ASC)
+    // We'll use ASC for now to match common default behavior if DESC index is missing
     return _firestore
         .collection('requests')
         .where('providerId', isEqualTo: providerId)
-        .orderBy('timestamp', descending: true)
+        .orderBy('timestamp', descending: false) 
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => ServiceRequestModel.fromJson(doc.data())).toList());
   }
   
   Stream<List<ServiceRequestModel>> streamConsumerRequests(String consumerId) {
+    // UPDATED: Set descending to false to match your currently enabled index
     return _firestore
         .collection('requests')
         .where('consumerId', isEqualTo: consumerId)
-        .orderBy('timestamp', descending: true)
+        .orderBy('timestamp', descending: false) 
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => ServiceRequestModel.fromJson(doc.data())).toList());
   }
