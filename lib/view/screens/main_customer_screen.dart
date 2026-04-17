@@ -16,9 +16,11 @@ import '../../view_models/map_view_model.dart';
 import '../../core/theme.dart';
 import '../../models/complaint_model.dart';
 import '../../models/user_model.dart';
+import '../../models/service_request_model.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
 
 class MainCustomerScreen extends StatefulWidget {
   const MainCustomerScreen({super.key});
@@ -627,6 +629,19 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
     );
   }
 
+  void _showRequestDetails(BuildContext context, ServiceRequestModel request) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => RequestDetailsSheet(
+        request: request,
+        onPay: (id, amount) => _startPayment(context, id, amount),
+        onReport: (id, accusedId) => _showComplaintDialog(context, id, accusedId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final consumerId = context.read<AuthViewModel>().currentUser?.uid;
@@ -641,73 +656,29 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('requests')
-                .where('consumerId', isEqualTo: consumerId)
-                .orderBy('timestamp', descending: true)
-                .snapshots(),
+          child: StreamBuilder<List<ServiceRequestModel>>(
+            stream: FirebaseService().streamConsumerRequests(consumerId),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
               
-              final bookings = snapshot.data!.docs;
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final bookings = snapshot.data ?? [];
 
               if (bookings.isEmpty) return const Center(child: Text('You have no bookings.'));
 
               return ListView.builder(
                 itemCount: bookings.length,
-                padding: const EdgeInsets.only(bottom: 100),
+                padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16),
                 itemBuilder: (context, index) {
-                  final data = bookings[index].data() as Map<String, dynamic>;
-                  final requestId = bookings[index].id;
-                  final serviceType = data['serviceType'] ?? 'Service';
-                  final status = data['status'] ?? 'pending';
-                  final paymentStatus = data['paymentStatus'] ?? 'pending';
-                  final agreedPrice = (data['agreedPrice'] as num?)?.toDouble() ?? 0.0;
-                  final providerId = data['providerId'];
-
-                  Widget trailingWidget;
-                  if (status == 'completed' && paymentStatus == 'pending') {
-                    trailingWidget = ElevatedButton(
-                      onPressed: () => _startPayment(context, requestId, agreedPrice),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      child: Text('Pay \$${agreedPrice.toStringAsFixed(2)}'),
-                    );
-                  } else if (paymentStatus == 'paid') {
-                    trailingWidget = const Text('PAID', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold));
-                  } else if (status == 'accepted' || status == 'inProgress') {
-                    trailingWidget = Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.chat, color: Colors.blue),
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(requestId: requestId, otherUserId: providerId)));
-                          },
-                        ),
-                        Text(status.toUpperCase(), style: const TextStyle(fontSize: 12)),
-                      ],
-                    );
-                  } else {
-                    trailingWidget = Text(status.toUpperCase());
-                  }
-
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      title: Text(serviceType, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Status: ${status.toUpperCase()}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          trailingWidget,
-                          IconButton(
-                            icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                            onPressed: () => _showComplaintDialog(context, requestId, providerId),
-                          ),
-                        ],
-                      ),
-                    ),
+                  final request = bookings[index];
+                  return BookingListItem(
+                    request: request,
+                    onTap: () => _showRequestDetails(context, request),
                   );
                 },
               );
@@ -715,6 +686,184 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class BookingListItem extends StatelessWidget {
+  final ServiceRequestModel request;
+  final VoidCallback onTap;
+
+  const BookingListItem({super.key, required this.request, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    Color statusColor;
+    switch (request.status) {
+      case RequestStatus.accepted: statusColor = Colors.green; break;
+      case RequestStatus.inProgress: statusColor = Colors.blue; break;
+      case RequestStatus.completed: statusColor = Colors.orange; break;
+      case RequestStatus.declined:
+      case RequestStatus.cancelled: statusColor = Colors.red; break;
+      default: statusColor = Colors.grey;
+    }
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.all(12),
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(Icons.build_circle_outlined, color: statusColor),
+        ),
+        title: Text(
+          request.serviceType,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(DateFormat('MMM dd, yyyy • hh:mm a').format(request.timestamp)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                request.status.name.toUpperCase(),
+                style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+      ),
+    );
+  }
+}
+
+class RequestDetailsSheet extends StatelessWidget {
+  final ServiceRequestModel request;
+  final Function(String, double) onPay;
+  final Function(String, String) onReport;
+
+  const RequestDetailsSheet({
+    super.key,
+    required this.request,
+    required this.onPay,
+    required this.onReport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Booking Details', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+            ],
+          ),
+          const Divider(),
+          const SizedBox(height: 16),
+          _buildDetailRow('Service', request.serviceType),
+          _buildDetailRow('Status', request.status.name.toUpperCase()),
+          _buildDetailRow('Date', DateFormat('MMM dd, yyyy').format(request.timestamp)),
+          _buildDetailRow('Time', DateFormat('hh:mm a').format(request.timestamp)),
+          if (request.description != null && request.description!.isNotEmpty)
+            _buildDetailRow('Description', request.description!),
+          if (request.agreedPrice != null)
+            _buildDetailRow('Agreed Price', '\$${request.agreedPrice!.toStringAsFixed(2)}'),
+          _buildDetailRow('Payment Status', request.paymentStatus.toUpperCase()),
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              if (request.status == RequestStatus.accepted || request.status == RequestStatus.inProgress)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(requestId: request.requestId, otherUserId: request.providerId)));
+                    },
+                    icon: const Icon(Icons.chat),
+                    label: const Text('Chat'),
+                    style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                  ),
+                ),
+              if (request.status == RequestStatus.completed && request.paymentStatus == 'pending')
+                const SizedBox(width: 12),
+              if (request.status == RequestStatus.completed && request.paymentStatus == 'pending')
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onPay(request.requestId, request.agreedPrice ?? 0);
+                    },
+                    icon: const Icon(Icons.payment),
+                    label: const Text('Pay Now'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                onReport(request.requestId, request.providerId);
+              },
+              icon: const Icon(Icons.report_problem, color: Colors.red),
+              label: const Text('Report an Issue', style: TextStyle(color: Colors.red)),
+              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 120, child: Text(label, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500))),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
+        ],
+      ),
     );
   }
 }
@@ -854,12 +1003,13 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 100.0), // Reduced top padding
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('My Profile', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
@@ -869,107 +1019,98 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
                 ),
               ],
             ),
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 10), // Small gap before profile image
+            Center(
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                child: Icon(Icons.person, size: 50, color: Theme.of(context).primaryColor),
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                Center(
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Icon(Icons.person, size: 50, color: Theme.of(context).primaryColor),
+                Expanded(
+                  child: TextField(
+                    controller: _ageController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
                   ),
                 ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _ageController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _gender,
-                        decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                        items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                        onChanged: (val) => setState(() => _gender = val),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    TextButton.icon(
-                      onPressed: _useGPS,
-                      icon: const Icon(Icons.my_location),
-                      label: const Text('Use GPS'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _houseNoController,
-                  decoration: const InputDecoration(labelText: 'House No. / Flat No.', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _buildingController,
-                  decoration: const InputDecoration(labelText: 'Building Name / Apartment', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _landmarkController,
-                  decoration: const InputDecoration(labelText: 'Landmark', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _cityController,
-                        decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: _stateController,
-                        decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder()),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _showConfirmationDialog,
-                    child: const Text('Save Profile'),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _gender,
+                    decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
+                    items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                    onChanged: (val) => setState(() => _gender = val),
                   ),
                 ),
-                const SizedBox(height: 50),
               ],
             ),
-          ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: _useGPS,
+                  icon: const Icon(Icons.my_location),
+                  label: const Text('Use GPS'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _houseNoController,
+              decoration: const InputDecoration(labelText: 'House No. / Flat No.', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _buildingController,
+              decoration: const InputDecoration(labelText: 'Building Name / Apartment', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _landmarkController,
+              decoration: const InputDecoration(labelText: 'Landmark', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cityController,
+                    decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: _stateController,
+                    decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder()),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _showConfirmationDialog,
+                child: const Text('Save Profile'),
+              ),
+            ),
+            const SizedBox(height: 50),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
