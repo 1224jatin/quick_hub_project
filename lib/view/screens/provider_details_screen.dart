@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:quick_hub_project/core/theme.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/user_model.dart';
 import '../../models/notification_model.dart';
+import '../../models/review_model.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../view_models/request_view_model.dart';
 import '../../services/firebase_service.dart';
@@ -22,6 +24,7 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   final _descriptionController = TextEditingController();
+  bool isDark = false;
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -172,6 +175,9 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Provider Details')),
       body: SingleChildScrollView(
@@ -184,41 +190,135 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 60,
-                    backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                    child: Icon(Icons.person, size: 60, color: Theme.of(context).primaryColor),
+                    backgroundColor: isDark ? Colors.grey.shade800 : AppTheme.primaryDarkBlue,
+                    child: Icon(Icons.person, size: 60, color: isDark ? Colors.white : Colors.white),
                   ),
                   const SizedBox(height: 16),
-                  Text(widget.provider.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                  Text(widget.provider.serviceType ?? 'General Service', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                  Text(
+                    widget.provider.name, 
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
+                    )
+                  ),
+                  Text(
+                    widget.provider.serviceType ?? 'General Service', 
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600, 
+                      fontSize: 16
+                    )
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
             _buildInfoSection('About', widget.provider.bio ?? 'No bio available.'),
             const SizedBox(height: 20),
-            _buildInfoSection('Hourly Rate', '\$${widget.provider.hourlyRate ?? 0} / hour'),
+            _buildInfoSection('Hourly Rate', '₹${widget.provider.hourlyRate ?? 0} / hour'),
             const SizedBox(height: 20),
+            
+            // Rating Header
             Row(
               children: [
                 const Icon(Icons.star, color: Colors.amber),
                 const SizedBox(width: 8),
-                Text('${widget.provider.rating} (${widget.provider.reviewCount} reviews)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  '${widget.provider.rating.toStringAsFixed(1)} (${widget.provider.reviewCount} reviews)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
+                  )
+                ),
               ],
             ),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _showRequestDialog,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                ),
-                child: const Text('Request Service', style: TextStyle(fontSize: 18)),
-              ),
+            const SizedBox(height: 24),
+
+            // Reviews Section
+            Text(
+              'Reviews', 
+              style: TextStyle(
+                fontSize: 18, 
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue
+              )
             ),
+            const Divider(),
+            StreamBuilder<List<ReviewModel>>(
+              stream: FirebaseService().streamProviderReviews(widget.provider.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()));
+                }
+                final reviews = snapshot.data ?? [];
+                if (reviews.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Text('No reviews yet.', style: TextStyle(color: isDark ? Colors.grey : Colors.grey.shade600)),
+                  );
+                }
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: reviews.length,
+                  itemBuilder: (context, index) {
+                    final review = reviews[index];
+                    return _buildReviewItem(review);
+                  },
+                );
+              },
+            ),
+
+            const SizedBox(height: 100),
           ],
         ),
+      ),
+      bottomSheet: Container(
+        padding: const EdgeInsets.all(20),
+        color: theme.scaffoldBackgroundColor,
+        child: SizedBox(
+          width: double.infinity,
+          height: 55,
+          child: ElevatedButton(
+            onPressed: _showRequestDialog,
+            child: const Text('Request Service', style: TextStyle(fontSize: 18)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(ReviewModel review) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < review.rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 16,
+                  );
+                }),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                DateFormat('MMM dd, yyyy').format(review.timestamp),
+                style: TextStyle(fontSize: 12, color: isDark ? Colors.grey : Colors.grey.shade600),
+              ),
+            ],
+          ),
+          if (review.comment != null && review.comment!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              review.comment!,
+              style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black87),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -227,9 +327,22 @@ class _ProviderDetailsScreenState extends State<ProviderDetailsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          title, 
+          style: TextStyle(
+            fontSize: 18, 
+            fontWeight: FontWeight.bold,
+            color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue
+          )
+        ),
         const SizedBox(height: 8),
-        Text(content, style: const TextStyle(fontSize: 15, color: Colors.black87)),
+        Text(
+          content, 
+          style: TextStyle(
+            fontSize: 15, 
+            color: isDark ? Colors.grey.shade300 : Colors.black87
+          )
+        ),
       ],
     );
   }

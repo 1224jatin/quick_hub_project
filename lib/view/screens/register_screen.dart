@@ -612,9 +612,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? AppTheme.primaryDarkBlue
-                              : AppTheme.white,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -623,9 +621,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ? "Join the Quick Hub Community"
                             : "Submit your details to start earning",
                         style: TextStyle(
-                          color: isDark
-                              ? AppTheme.primaryDarkBlue
-                              : AppTheme.white,
+                          color:Colors.white,
                           fontSize: 14,
                         ),
                       ),
@@ -940,8 +936,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: isSelected
-                  ? (isDark ? AppTheme.primaryDarkBlue : Colors.white)
-                  : (isDark ? Colors.white70 : AppTheme.primaryDarkBlue),
+                  ? (isDark ? Colors.white70 : Colors.white)
+                  : (isDark ? Colors.white70 :AppTheme.primaryDarkBlue),
             ),
           ),
         ),

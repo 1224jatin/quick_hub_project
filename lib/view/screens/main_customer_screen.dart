@@ -10,6 +10,7 @@ import 'home_map_screen.dart';
 import 'chat_screen.dart';
 import 'notifications_screen.dart';
 import 'provider_details_screen.dart';
+import 'all_providers_screen.dart';
 import '../widgets/animated_bottom_nav.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../view_models/map_view_model.dart';
@@ -17,6 +18,7 @@ import '../../core/theme.dart';
 import '../../models/complaint_model.dart';
 import '../../models/user_model.dart';
 import '../../models/service_request_model.dart';
+import '../../models/review_model.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -37,7 +39,7 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final mapVM = context.watch<MapViewModel>();
-    
+
     return Scaffold(
       extendBody: true,
       body: Stack(
@@ -60,9 +62,13 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
                   children: [
                     const PulseAnimation(),
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       "Fetching current location...",
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: AppTheme.baseWhite,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -72,7 +78,7 @@ class _MainCustomerScreenState extends State<MainCustomerScreen> {
       ),
       bottomNavigationBar: AnimatedBottomNav(
         currentIndex: _selectedIndex,
-        backgroundColor: isDark ? AppTheme.darkSurface : Colors.white,
+        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
         onTap: (index) => setState(() => _selectedIndex = index),
         items: [
           BottomNavItem(icon: Icons.home, label: 'Home'),
@@ -112,6 +118,10 @@ class _PulseAnimationState extends State<PulseAnimation> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.primaryColor;
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -120,14 +130,18 @@ class _PulseAnimationState extends State<PulseAnimation> with SingleTickerProvid
           height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppTheme.primaryLightBlue.withOpacity(1 - _controller.value),
+            color: primaryColor.withOpacity(0.2 * (1 - _controller.value)),
             border: Border.all(
-              color: AppTheme.primaryDarkBlue.withOpacity(1 - _controller.value),
+              color: primaryColor.withOpacity(1 - _controller.value),
               width: 4 * _controller.value,
             ),
           ),
-          child: const Center(
-            child: Icon(Icons.location_on, color: AppTheme.primaryDarkBlue, size: 30),
+          child: Center(
+            child: Icon(
+              Icons.location_on,
+              color: isDark ? AppTheme.baseWhite : primaryColor,
+              size: 30,
+            ),
           ),
         );
       },
@@ -187,8 +201,8 @@ class CustomerHomeTab extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 26,
-                        backgroundColor: theme.primaryColor.withOpacity(0.1),
-                        child: Icon(Icons.person, color: theme.primaryColor),
+                        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
+                        child: Icon(Icons.person, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
                       ),
                       const SizedBox(width: 12),
                       Column(
@@ -198,7 +212,7 @@ class CustomerHomeTab extends StatelessWidget {
                             'Hello $userName',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : AppTheme.primaryDarkBlue,
+                              color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue,
                             ),
                           ),
                           GestureDetector(
@@ -212,7 +226,9 @@ class CustomerHomeTab extends StatelessWidget {
                                   child: Text(
                                     mapVM.locationError ?? (mapVM.currentAddress ?? "Fetching location..."),
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mapVM.locationError != null ? Colors.red : Colors.grey,
+                                      color: mapVM.locationError != null 
+                                          ? Colors.red 
+                                          : (isDark ? Colors.grey.shade400 : Colors.grey),
                                       decoration: TextDecoration.underline,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -232,13 +248,19 @@ class CustomerHomeTab extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: isDark ? AppTheme.darkSurface : Colors.white,
+                        color: isDark ? AppTheme.darkSurface : AppTheme.white,
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), 
+                            blurRadius: 10
+                          )
                         ],
                       ),
-                      child: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white : AppTheme.primaryDarkBlue),
+                      child: Icon(
+                        Icons.notifications_none_rounded, 
+                        color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue
+                      ),
                     ),
                   ),
                 ],
@@ -254,18 +276,22 @@ class CustomerHomeTab extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       height: 55,
                       decoration: BoxDecoration(
-                        color: isDark ? AppTheme.darkSurface : Colors.white,
+                        color: isDark ? AppTheme.darkSurface : AppTheme.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03), 
+                            blurRadius: 10
+                          )
                         ],
                       ),
                       child: TextField(
                         onChanged: (value) => context.read<MapViewModel>().setSearchQuery(value),
+                        style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
                         decoration: InputDecoration(
                           hintText: 'Search Service',
-                          hintStyle: TextStyle(color: Colors.grey.shade400),
-                          icon: Icon(Icons.search, color: Colors.grey.shade400),
+                          hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey.shade400),
+                          icon: Icon(Icons.search, color: isDark ? Colors.grey.shade500 : Colors.grey.shade400),
                           border: InputBorder.none,
                         ),
                       ),
@@ -280,13 +306,16 @@ class CustomerHomeTab extends StatelessWidget {
                       height: 55,
                       width: 55,
                       decoration: BoxDecoration(
-                        color: isDark ? AppTheme.darkSurface : Colors.white,
+                        color: isDark ? AppTheme.darkSurface : AppTheme.white,
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03), 
+                            blurRadius: 10
+                          )
                         ],
                       ),
-                      child: Icon(Icons.tune_rounded, color: theme.primaryColor),
+                      child: Icon(Icons.tune_rounded, color: isDark ? AppTheme.baseWhite : theme.primaryColor),
                     ),
                   ),
                 ],
@@ -358,8 +387,25 @@ class CustomerHomeTab extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Categories', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  Text('See All', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                  Text(
+                    'Categories', 
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppTheme.baseWhite : null,
+                    )
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      context.read<MapViewModel>().resetFilters();
+                    },
+                    child: Text(
+                      'See All', 
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade500, 
+                        fontSize: 13
+                      )
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -386,13 +432,21 @@ class CustomerHomeTab extends StatelessWidget {
                                 color: isDark ? AppTheme.darkSurface : AppTheme.primaryLightBlue,
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Icon(cat['icon'], color: AppTheme.primaryDarkBlue, size: 28),
+                              child: Icon(
+                                cat['icon'], 
+                                color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue, 
+                                size: 28
+                              ),
                             ),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             cat['name'],
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              fontSize: 12, 
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? AppTheme.baseWhite : Colors.black,
+                            ),
                           ),
                         ],
                       ),
@@ -407,8 +461,25 @@ class CustomerHomeTab extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Nearby Providers', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  Text('See All', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                  Text(
+                    'Nearby Providers', 
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppTheme.baseWhite : null,
+                    )
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AllProvidersScreen()));
+                    },
+                    child: Text(
+                      'See All', 
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade500, 
+                        fontSize: 13
+                      )
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -417,7 +488,12 @@ class CustomerHomeTab extends StatelessWidget {
               SizedBox(
                 height: 220,
                 child: mapVM.nearbyProviders.isEmpty 
-                  ? const Center(child: Text("No providers found in this area."))
+                  ? Center(
+                      child: Text(
+                        "No providers found in this area.",
+                        style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+                      )
+                    )
                   : ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: mapVM.nearbyProviders.length,
@@ -437,7 +513,8 @@ class CustomerHomeTab extends StatelessWidget {
   }
 
   Widget _buildProviderCard(BuildContext context, UserModel provider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -452,10 +529,13 @@ class CustomerHomeTab extends StatelessWidget {
         margin: const EdgeInsets.only(right: 15, bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : Colors.white,
+          color: isDark ? AppTheme.darkSurface : AppTheme.white,
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.02), 
+              blurRadius: 10
+            )
           ],
         ),
         child: Column(
@@ -465,21 +545,32 @@ class CustomerHomeTab extends StatelessWidget {
               height: 100,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppTheme.primaryLightBlue,
+                color: isDark ? AppTheme.darkBackground : AppTheme.primaryLightBlue,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(Icons.person, color: AppTheme.primaryDarkBlue, size: 40),
+              child: Icon(
+                Icons.person, 
+                color: isDark ? AppTheme.baseWhite : AppTheme.primaryDarkBlue, 
+                size: 40
+              ),
             ),
             const SizedBox(height: 12),
             Text(
               provider.name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              style: TextStyle(
+                fontWeight: FontWeight.bold, 
+                fontSize: 14,
+                color: isDark ? AppTheme.baseWhite : Colors.black,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             Text(
               provider.serviceType ?? 'General',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey, 
+                fontSize: 12
+              ),
             ),
             const Spacer(),
             Row(
@@ -488,10 +579,24 @@ class CustomerHomeTab extends StatelessWidget {
                 Row(
                   children: [
                     const Icon(Icons.star, color: Colors.amber, size: 14),
-                    Text(' ${provider.rating}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    Text(
+                      ' ${provider.rating.toStringAsFixed(1)}', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 12,
+                        color: isDark ? AppTheme.baseWhite : Colors.black,
+                      )
+                    ),
                   ],
                 ),
-                Text('\$${provider.hourlyRate ?? 0}/hr', style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                Text(
+                  '₹${provider.hourlyRate ?? 0}/hr', 
+                  style: const TextStyle(
+                    color: Colors.green, 
+                    fontSize: 11, 
+                    fontWeight: FontWeight.bold
+                  )
+                ),
               ],
             ),
           ],
@@ -583,14 +688,24 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
     showDialog(
       context: context,
       builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          title: const Text('Report an Issue'),
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text(
+            'Report an Issue',
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+          ),
           content: TextField(
             controller: textController,
             maxLines: 3,
-            decoration: const InputDecoration(
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+            decoration: InputDecoration(
               hintText: 'Describe the problem clearly...',
-              border: OutlineInputBorder(),
+              hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey),
+              border: const OutlineInputBorder(),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: isDark ? AppTheme.baseWhite.withOpacity(0.3) : Colors.grey),
+              ),
             ),
           ),
           actions: [
@@ -633,26 +748,114 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      backgroundColor: Colors.transparent,
       builder: (context) => RequestDetailsSheet(
         request: request,
         onPay: (id, amount) => _startPayment(context, id, amount),
         onReport: (id, accusedId) => _showComplaintDialog(context, id, accusedId),
+        onRate: (id, providerId) => _showRatingDialog(context, id, providerId),
+      ),
+    );
+  }
+
+  void _showRatingDialog(BuildContext context, String requestId, String providerId) {
+    double rating = 0;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return AlertDialog(
+            backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+            title: Text('Rate Service', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    return IconButton(
+                      icon: Icon(
+                        index < rating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                        size: 32,
+                      ),
+                      onPressed: () => setDialogState(() => rating = index + 1.0),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: commentController,
+                  maxLines: 3,
+                  style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+                  decoration: InputDecoration(
+                    hintText: 'Share your experience...',
+                    hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: rating == 0 ? null : () async {
+                  final authVM = context.read<AuthViewModel>();
+                  final consumerId = authVM.currentUser!.uid;
+                  
+                  final review = ReviewModel(
+                    reviewId: const Uuid().v4(),
+                    consumerId: consumerId,
+                    providerId: providerId,
+                    requestId: requestId,
+                    rating: rating,
+                    comment: commentController.text.trim(),
+                    timestamp: DateTime.now(),
+                  );
+
+                  await FirebaseService().submitReview(review);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback!')));
+                  }
+                },
+                child: const Text('Submit'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final consumerId = context.read<AuthViewModel>().currentUser?.uid;
-    if (consumerId == null) return const Center(child: Text("Please Login to see bookings."));
+    if (consumerId == null) {
+      return Center(
+        child: Text(
+          "Please Login to see bookings.",
+          style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+        )
+      );
+    }
 
     return Column(
       children: [
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text('My Bookings', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            child: Text(
+              'My Bookings', 
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppTheme.baseWhite : Colors.black,
+              )
+            ),
           ),
         ),
         Expanded(
@@ -664,12 +867,24 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
               }
               
               if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
+                return Center(
+                  child: Text(
+                    'Error: ${snapshot.error}',
+                    style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+                  )
+                );
               }
 
               final bookings = snapshot.data ?? [];
 
-              if (bookings.isEmpty) return const Center(child: Text('You have no bookings.'));
+              if (bookings.isEmpty) {
+                return Center(
+                  child: Text(
+                    'You have no bookings.',
+                    style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+                  )
+                );
+              }
 
               return ListView.builder(
                 itemCount: bookings.length,
@@ -714,9 +929,10 @@ class BookingListItem extends StatelessWidget {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      color: isDark ? AppTheme.darkSurface : AppTheme.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+        side: BorderSide(color: isDark ? AppTheme.baseWhite.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
       ),
       child: ListTile(
         onTap: onTap,
@@ -732,13 +948,19 @@ class BookingListItem extends StatelessWidget {
         ),
         title: Text(
           request.serviceType,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isDark ? AppTheme.baseWhite : Colors.black,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text(DateFormat('MMM dd, yyyy • hh:mm a').format(request.timestamp)),
+            Text(
+              DateFormat('MMM dd, yyyy • hh:mm a').format(request.timestamp),
+              style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
+            ),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -753,7 +975,10 @@ class BookingListItem extends StatelessWidget {
             ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: Icon(
+          Icons.chevron_right, 
+          color: isDark ? AppTheme.baseWhite.withOpacity(0.5) : Colors.grey
+        ),
       ),
     );
   }
@@ -763,12 +988,14 @@ class RequestDetailsSheet extends StatelessWidget {
   final ServiceRequestModel request;
   final Function(String, double) onPay;
   final Function(String, String) onReport;
+  final Function(String, String) onRate;
 
   const RequestDetailsSheet({
     super.key,
     required this.request,
     required this.onPay,
     required this.onReport,
+    required this.onRate,
   });
 
   @override
@@ -779,7 +1006,7 @@ class RequestDetailsSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurface : Colors.white,
+        color: isDark ? AppTheme.darkSurface : AppTheme.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
       ),
       child: Column(
@@ -789,21 +1016,30 @@ class RequestDetailsSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Booking Details', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              Text(
+                'Booking Details', 
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppTheme.baseWhite : Colors.black,
+                )
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context), 
+                icon: Icon(Icons.close, color: isDark ? AppTheme.baseWhite : Colors.black)
+              ),
             ],
           ),
           const Divider(),
           const SizedBox(height: 16),
-          _buildDetailRow('Service', request.serviceType),
-          _buildDetailRow('Status', request.status.name.toUpperCase()),
-          _buildDetailRow('Date', DateFormat('MMM dd, yyyy').format(request.timestamp)),
-          _buildDetailRow('Time', DateFormat('hh:mm a').format(request.timestamp)),
+          _buildDetailRow(context, 'Service', request.serviceType),
+          _buildDetailRow(context, 'Status', request.status.name.toUpperCase()),
+          _buildDetailRow(context, 'Date', DateFormat('MMM dd, yyyy').format(request.timestamp)),
+          _buildDetailRow(context, 'Time', DateFormat('hh:mm a').format(request.timestamp)),
           if (request.description != null && request.description!.isNotEmpty)
-            _buildDetailRow('Description', request.description!),
+            _buildDetailRow(context, 'Description', request.description!),
           if (request.agreedPrice != null)
-            _buildDetailRow('Agreed Price', '\$${request.agreedPrice!.toStringAsFixed(2)}'),
-          _buildDetailRow('Payment Status', request.paymentStatus.toUpperCase()),
+            _buildDetailRow(context, 'Agreed Price', '₹${request.agreedPrice!.toStringAsFixed(2)}'),
+          _buildDetailRow(context, 'Payment Status', request.paymentStatus.toUpperCase()),
           const SizedBox(height: 32),
           Row(
             children: [
@@ -816,7 +1052,10 @@ class RequestDetailsSheet extends StatelessWidget {
                     },
                     icon: const Icon(Icons.chat),
                     label: const Text('Chat'),
-                    style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primaryColor,
+                      foregroundColor: AppTheme.baseWhite,
+                    ),
                   ),
                 ),
               if (request.status == RequestStatus.completed && request.paymentStatus == 'pending')
@@ -831,6 +1070,18 @@ class RequestDetailsSheet extends StatelessWidget {
                     icon: const Icon(Icons.payment),
                     label: const Text('Pay Now'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
+                ),
+              if (request.status == RequestStatus.completed && request.paymentStatus == 'paid')
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onRate(request.requestId, request.providerId);
+                    },
+                    icon: const Icon(Icons.star),
+                    label: const Text('Rate Service'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
                   ),
                 ),
             ],
@@ -854,14 +1105,32 @@ class RequestDetailsSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 120, child: Text(label, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500))),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
+          SizedBox(
+            width: 120, 
+            child: Text(
+              label, 
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey, 
+                fontWeight: FontWeight.w500
+              )
+            )
+          ),
+          Expanded(
+            child: Text(
+              value, 
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppTheme.baseWhite : Colors.black,
+              )
+            )
+          ),
         ],
       ),
     );
@@ -903,23 +1172,61 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
     }
   }
 
-  void _showConfirmationDialog() {
+  void _showLogoutConfirmation() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update Profile'),
-        content: const Text('Are you sure you want to save these changes?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _saveProfile();
-            },
-            child: const Text('Confirm'),
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text('Logout', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          content: Text('Are you sure you want to log out?', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.read<AuthViewModel>().logout();
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Logged out successfully.'), backgroundColor: Colors.blue),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showUpdateConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text(
+            'Update Profile',
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
           ),
-        ],
-      ),
+          content: Text(
+            'Are you sure you want to save these changes?',
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _saveProfile();
+              },
+              child: const Text('Confirm Update'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -951,7 +1258,10 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
       final success = await authVM.updateProfile(updatedUser);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? 'Profile updated successfully!' : 'Failed to update profile.')),
+          SnackBar(
+            content: Text(success ? 'Profile updated successfully!' : 'Failed to update profile.'),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
         );
       }
     }
@@ -995,14 +1305,24 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
         _stateController.text = place.administrativeArea ?? '';
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location fetched successfully!')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location fetched successfully!'), backgroundColor: Colors.green));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch location.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch location.'), backgroundColor: Colors.red));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textStyle = TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black);
+    final inputDecoration = InputDecoration(
+      labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
+      border: const OutlineInputBorder(),
+      enabledBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: isDark ? AppTheme.baseWhite.withOpacity(0.3) : Colors.grey),
+      ),
+    );
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 100.0), // Reduced top padding
@@ -1012,10 +1332,16 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('My Profile', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  'My Profile', 
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppTheme.baseWhite : Colors.black,
+                  )
+                ),
                 IconButton(
                   icon: const Icon(Icons.logout, color: Colors.red),
-                  onPressed: () => context.read<AuthViewModel>().logout(),
+                  onPressed: _showLogoutConfirmation,
                 ),
               ],
             ),
@@ -1023,14 +1349,19 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
             Center(
               child: CircleAvatar(
                 radius: 50,
-                backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-                child: Icon(Icons.person, size: 50, color: Theme.of(context).primaryColor),
+                backgroundColor: isDark ? AppTheme.darkSurface : Theme.of(context).primaryColor.withOpacity(0.1),
+                child: Icon(
+                  Icons.person, 
+                  size: 50, 
+                  color: isDark ? AppTheme.baseWhite : Theme.of(context).primaryColor
+                ),
               ),
             ),
             const SizedBox(height: 24),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+              style: textStyle,
+              decoration: inputDecoration.copyWith(labelText: 'Full Name'),
             ),
             const SizedBox(height: 16),
             Row(
@@ -1039,15 +1370,20 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
                   child: TextField(
                     controller: _ageController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+                    style: textStyle,
+                    decoration: inputDecoration.copyWith(labelText: 'Age'),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: _gender,
-                    decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                    items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                    dropdownColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+                    decoration: inputDecoration.copyWith(labelText: 'Gender'),
+                    items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(
+                      value: g, 
+                      child: Text(g, style: textStyle)
+                    )).toList(),
                     onChanged: (val) => setState(() => _gender = val),
                   ),
                 ),
@@ -1057,7 +1393,14 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  'Location Details', 
+                  style: TextStyle(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppTheme.baseWhite : Colors.black,
+                  )
+                ),
                 TextButton.icon(
                   onPressed: _useGPS,
                   icon: const Icon(Icons.my_location),
@@ -1068,17 +1411,20 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
             const SizedBox(height: 12),
             TextField(
               controller: _houseNoController,
-              decoration: const InputDecoration(labelText: 'House No. / Flat No.', border: OutlineInputBorder()),
+              style: textStyle,
+              decoration: inputDecoration.copyWith(labelText: 'House No. / Flat No.'),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _buildingController,
-              decoration: const InputDecoration(labelText: 'Building Name / Apartment', border: OutlineInputBorder()),
+              style: textStyle,
+              decoration: inputDecoration.copyWith(labelText: 'Building Name / Apartment'),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _landmarkController,
-              decoration: const InputDecoration(labelText: 'Landmark', border: OutlineInputBorder()),
+              style: textStyle,
+              decoration: inputDecoration.copyWith(labelText: 'Landmark'),
             ),
             const SizedBox(height: 16),
             Row(
@@ -1086,14 +1432,16 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
                 Expanded(
                   child: TextField(
                     controller: _cityController,
-                    decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()),
+                    style: textStyle,
+                    decoration: inputDecoration.copyWith(labelText: 'City'),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: TextField(
                     controller: _stateController,
-                    decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder()),
+                    style: textStyle,
+                    decoration: inputDecoration.copyWith(labelText: 'State'),
                   ),
                 ),
               ],
@@ -1103,7 +1451,7 @@ class _CustomerProfileTabState extends State<CustomerProfileTab> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _showConfirmationDialog,
+                onPressed: _showUpdateConfirmation,
                 child: const Text('Save Profile'),
               ),
             ),

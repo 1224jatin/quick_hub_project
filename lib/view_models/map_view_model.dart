@@ -26,6 +26,7 @@ class MapViewModel extends ChangeNotifier {
   bool get isFetchingLocation => _isFetchingLocation;
   String? get locationError => _locationError;
   List<UserModel> get nearbyProviders => _filteredProviders;
+  List<UserModel> get allNearbyProviders => _allProviders; // All providers for 'See All'
 
   MapViewModel() {
     fetchLocation();
@@ -97,6 +98,12 @@ class MapViewModel extends ChangeNotifier {
     _applyFilters();
   }
 
+  void resetFilters() {
+    _searchQuery = '';
+    _selectedCategory = null;
+    _applyFilters();
+  }
+
   void _applyFilters() {
     _filteredProviders = _allProviders.where((provider) {
       final matchesQuery = provider.name.toLowerCase().contains(_searchQuery) || 
@@ -109,5 +116,10 @@ class MapViewModel extends ChangeNotifier {
 
   Future<void> refreshLocation() async {
     await fetchLocation(force: true);
+  }
+
+  Future<void> fetchNearbyProviders() async {
+    // This could trigger a refresh or simply ensure we are showing all
+    resetFilters();
   }
 }

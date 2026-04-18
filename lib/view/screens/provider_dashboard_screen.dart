@@ -20,6 +20,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import '../../core/theme.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -38,6 +39,34 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
     const ProviderProfileTab(),
   ];
 
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text('Logout', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          content: Text('Are you sure you want to log out?', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.read<AuthViewModel>().logout();
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Logged out successfully.'), backgroundColor: Colors.blue),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,7 +76,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthViewModel>().logout(),
+            onPressed: _showLogoutConfirmation,
           ),
         ],
       ),
@@ -99,6 +128,30 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
     }
   }
 
+  void _showSaveConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text('Update Services', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          content: Text('Are you sure you want to save these changes?', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _saveProfile();
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _saveProfile() async {
     final user = context.read<AuthViewModel>().currentUser;
     if (user == null) return;
@@ -135,11 +188,11 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update(updateData);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Services updated successfully!'), backgroundColor: Colors.green));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
     setState(() => _isLoading = false);
@@ -147,20 +200,22 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: ListView(
         children: [
-          const Text('My Services & Availability', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text('My Services & Availability', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
           const SizedBox(height: 20),
           
           Card(
+            color: isDark ? AppTheme.darkSurface : AppTheme.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: SwitchListTile(
-                title: const Text('Available for Jobs (Active)', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Turn off to hide your profile from the consumer map.'),
+                title: Text('Available for Jobs (Active)', style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
+                subtitle: Text('Turn off to hide your profile from the consumer map.', style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)),
                 value: _isActive,
                 activeColor: Colors.green,
                 onChanged: (val) async {
@@ -195,9 +250,13 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           
           DropdownButtonFormField<String>(
             value: _selectedCategory,
+            dropdownColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
             decoration: InputDecoration(
               labelText: 'Primary Service Category',
+              labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.grey)),
             ),
             items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
             onChanged: (val) => setState(() => _selectedCategory = val),
@@ -207,10 +266,14 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           TextField(
             controller: _bioController,
             maxLines: 4,
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
             decoration: InputDecoration(
               labelText: 'Professional Bio',
+              labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
               hintText: 'Tell customers about your experience and skills...',
+              hintStyle: TextStyle(color: isDark ? Colors.grey.shade600 : Colors.grey),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.grey)),
             ),
           ),
           const SizedBox(height: 30),
@@ -218,7 +281,7 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           SizedBox(
             height: 50,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveProfile,
+              onPressed: _isLoading ? null : _showSaveConfirmation,
               style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               child: _isLoading 
                   ? const CircularProgressIndicator(color: Colors.white) 
@@ -238,6 +301,7 @@ class ProviderJobsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final providerId = context.read<AuthViewModel>().currentUser?.uid;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -266,7 +330,7 @@ class ProviderJobsTab extends StatelessWidget {
         }
         final jobs = snapshot.data!.docs.map((doc) => ServiceRequestModel.fromJson(doc.data() as Map<String, dynamic>)).toList();
 
-        if (jobs.isEmpty) return const Center(child: Text('No assigned jobs yet.'));
+        if (jobs.isEmpty) return Center(child: Text('No assigned jobs yet.', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)));
 
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 100),
@@ -301,10 +365,15 @@ class ProviderJobsTab extends StatelessWidget {
             }
 
             return Card(
+              color: isDark ? AppTheme.darkSurface : AppTheme.white,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: isDark ? AppTheme.baseWhite.withOpacity(0.1) : Colors.black.withOpacity(0.05)),
+              ),
               child: ListTile(
-                title: Text(job.serviceType),
-                subtitle: Text('Status: ${job.status.name.toUpperCase()} | Payment: ${job.paymentStatus.toUpperCase()}'),
+                title: Text(job.serviceType, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
+                subtitle: Text('Status: ${job.status.name.toUpperCase()} | Payment: ${job.paymentStatus.toUpperCase()}', style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)),
                 trailing: trailingWidget,
               ),
             );
@@ -318,8 +387,10 @@ class ProviderJobsTab extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          title: const Text('Update Job Status'),
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text('Update Job Status', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -336,9 +407,11 @@ class ProviderJobsTab extends StatelessWidget {
                     );
                     await FirebaseService().saveNotification(notif);
                     if (context.mounted) Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job accepted!'), backgroundColor: Colors.green));
                   },
                   child: const Text('Accept Job'),
                 ),
+                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () async {
                     await FirebaseFirestore.instance.collection('requests').doc(job.requestId).update({'status': 'declined'});
@@ -351,7 +424,9 @@ class ProviderJobsTab extends StatelessWidget {
                     );
                     await FirebaseService().saveNotification(notif);
                     if (context.mounted) Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job declined.'), backgroundColor: Colors.red));
                   },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   child: const Text('Decline Job'),
                 ),
               ],
@@ -360,6 +435,7 @@ class ProviderJobsTab extends StatelessWidget {
                   onPressed: () {
                     FirebaseFirestore.instance.collection('requests').doc(job.requestId).update({'status': 'inProgress'});
                     Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job started!'), backgroundColor: Colors.blue));
                   },
                   child: const Text('Start Work (In Progress)'),
                 ),
@@ -385,16 +461,22 @@ class ProviderJobsTab extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
-          title: const Text('Complete Job'),
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text('Complete Job', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Enter the total hours worked:'),
+              Text('Enter the total hours worked:', style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black)),
               TextField(
                 controller: hoursController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(hintText: 'e.g., 2.5'),
+                style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'e.g., 2.5',
+                  hintStyle: TextStyle(color: isDark ? Colors.grey.shade600 : Colors.grey),
+                ),
               ),
             ],
           ),
@@ -412,7 +494,10 @@ class ProviderJobsTab extends StatelessWidget {
                     'agreedPrice': total,
                     'paymentStatus': 'pending', 
                   });
-                  if (context.mounted) Navigator.pop(context);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job completed & Invoice generated!'), backgroundColor: Colors.green));
+                  }
                 }
               },
               child: const Text('Submit & Generate Invoice'),
@@ -430,6 +515,7 @@ class ProviderEarningsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final providerId = context.read<AuthViewModel>().currentUser?.uid;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -479,27 +565,27 @@ class ProviderEarningsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Earnings Analytics',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.05),
+                  color: isDark ? AppTheme.darkSurface : Theme.of(context).primaryColor.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
                   children: [
-                    const Text('Total Earnings', style: TextStyle(color: Colors.grey)),
-                    Text('\$${totalEarnings.toStringAsFixed(2)}', style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.green)),
+                    Text('Total Earnings', style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey)),
+                    Text('₹${totalEarnings.toStringAsFixed(2)}', style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.green)),
                   ],
                 ),
               ),
               const SizedBox(height: 40),
-              const Text('Revenue Growth', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Revenue Growth', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
               const SizedBox(height: 20),
               Expanded(
                 child: LineChart(
@@ -578,6 +664,36 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
     }
   }
 
+  void _showUpdateConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+          title: Text(
+            'Update Profile',
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+          ),
+          content: Text(
+            'Are you sure you want to save these changes?',
+            style: TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _updateProfile();
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _updateProfile() async {
     setState(() => _isLoading = true);
     final authVM = context.read<AuthViewModel>();
@@ -617,7 +733,7 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
       final success = await authVM.updateProfile(updatedUser);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? 'Profile updated successfully!' : 'Update failed.')),
+          SnackBar(content: Text(success ? 'Profile updated successfully!' : 'Update failed.'), backgroundColor: success ? Colors.green : Colors.red),
         );
       }
     }
@@ -649,9 +765,10 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           _cityController.text = p.locality ?? '';
           _stateController.text = p.administrativeArea ?? '';
         });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location fetched successfully!'), backgroundColor: Colors.green));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch location.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch location.'), backgroundColor: Colors.red));
     }
   }
 
@@ -681,14 +798,14 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
                 pw.Text('Provider: ${userModel.name}'),
                 pw.Text('Generated On: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),
                 pw.SizedBox(height: 20),
-                pw.Text('Total Earnings: \$${totalEarnings.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 18, color: PdfColors.green)),
+                pw.Text('Total Earnings: ₹${totalEarnings.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 18, color: PdfColors.green)),
                 pw.SizedBox(height: 20),
                 pw.Table.fromTextArray(
                   headers: ['Date', 'Type', 'Amount'],
                   data: txns.map((t) => [
                     DateFormat('yyyy-MM-dd').format(t.timestamp),
                     'Service Payout',
-                    '\$${t.providerEarnings.toStringAsFixed(2)}'
+                    '₹${t.providerEarnings.toStringAsFixed(2)}'
                   ]).toList(),
                 ),
               ],
@@ -702,11 +819,11 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
       await file.writeAsBytes(await pdf.save());
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF Generated Successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF Generated Successfully'), backgroundColor: Colors.green));
         OpenFile.open(file.path);
       }
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -714,6 +831,13 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthViewModel>().currentUser;
     if (user == null) return const Center(child: CircularProgressIndicator());
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textStyle = TextStyle(color: isDark ? AppTheme.baseWhite : Colors.black);
+    final inputDecoration = InputDecoration(
+      labelStyle: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
+      border: const OutlineInputBorder(),
+      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.grey.shade700 : Colors.grey)),
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -723,27 +847,28 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           Center(
             child: Stack(
               children: [
-                CircleAvatar(radius: 50, backgroundColor: Colors.blue.withOpacity(0.1), child: const Icon(Icons.person, size: 50, color: Colors.blue)),
+                CircleAvatar(radius: 50, backgroundColor: isDark ? AppTheme.darkSurface : Colors.blue.withOpacity(0.1), child: Icon(Icons.person, size: 50, color: isDark ? AppTheme.baseWhite : Colors.blue)),
                 if (user.isPremium)
                   const Positioned(bottom: 0, right: 0, child: CircleAvatar(radius: 14, backgroundColor: Colors.amber, child: Icon(Icons.star, size: 16, color: Colors.white))),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          const Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
           const Divider(),
           const SizedBox(height: 10),
-          TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder())),
+          TextField(controller: _nameController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Full Name')),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: TextField(controller: _ageController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()))),
+              Expanded(child: TextField(controller: _ageController, keyboardType: TextInputType.number, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Age'))),
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: ['Male', 'Female', 'Other'].contains(_gender) ? _gender : null,
-                  decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                  items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                  dropdownColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+                  decoration: inputDecoration.copyWith(labelText: 'Gender'),
+                  items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g, style: textStyle))).toList(),
                   onChanged: (val) => setState(() => _gender = val),
                 ),
               ),
@@ -752,45 +877,46 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             value: ['English', 'Hindi', 'Punjabi', 'Other'].contains(_language) ? _language : null,
-            decoration: const InputDecoration(labelText: 'Preferred Language', border: OutlineInputBorder()),
-            items: ['English', 'Hindi', 'Punjabi', 'Other'].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+            dropdownColor: isDark ? AppTheme.darkSurface : AppTheme.white,
+            decoration: inputDecoration.copyWith(labelText: 'Preferred Language'),
+            items: ['English', 'Hindi', 'Punjabi', 'Other'].map((l) => DropdownMenuItem(value: l, child: Text(l, style: textStyle))).toList(),
             onChanged: (val) => setState(() => _language = val),
           ),
           const SizedBox(height: 24),
-          const Text('Verification (Read-Only)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Verification (Read-Only)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
           const Divider(),
           const SizedBox(height: 10),
-          TextField(decoration: const InputDecoration(labelText: 'Aadhaar Number', border: OutlineInputBorder()), controller: TextEditingController(text: user.aadhaarNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
+          TextField(decoration: inputDecoration.copyWith(labelText: 'Aadhaar Number'), controller: TextEditingController(text: user.aadhaarNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 16),
-          TextField(decoration: const InputDecoration(labelText: 'PAN Number', border: OutlineInputBorder()), controller: TextEditingController(text: user.panNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
+          TextField(decoration: inputDecoration.copyWith(labelText: 'PAN Number'), controller: TextEditingController(text: user.panNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 24),
-          const Text('Professional Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('Professional Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
           const Divider(),
           const SizedBox(height: 10),
-          TextField(controller: _rateController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Hourly Rate (INR)', border: OutlineInputBorder())),
+          TextField(controller: _rateController, keyboardType: TextInputType.number, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Hourly Rate (INR)')),
           const SizedBox(height: 16),
-          TextField(controller: _bioController, maxLines: 3, decoration: const InputDecoration(labelText: 'Bio / Skills', border: OutlineInputBorder())),
+          TextField(controller: _bioController, maxLines: 3, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Bio / Skills')),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? AppTheme.baseWhite : Colors.black)),
               TextButton.icon(onPressed: _useGPS, icon: const Icon(Icons.my_location), label: const Text('Use GPS')),
             ],
           ),
           const Divider(),
           const SizedBox(height: 10),
-          TextField(controller: _houseController, decoration: const InputDecoration(labelText: 'House/Flat No.', border: OutlineInputBorder())),
+          TextField(controller: _houseController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'House/Flat No.')),
           const SizedBox(height: 16),
-          TextField(controller: _buildingController, decoration: const InputDecoration(labelText: 'Building/Area', border: OutlineInputBorder())),
+          TextField(controller: _buildingController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Building/Area')),
           const SizedBox(height: 16),
-          TextField(controller: _landmarkController, decoration: const InputDecoration(labelText: 'Landmark', border: OutlineInputBorder())),
+          TextField(controller: _landmarkController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'Landmark')),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: TextField(controller: _cityController, decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()))),
+              Expanded(child: TextField(controller: _cityController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'City'))),
               const SizedBox(width: 16),
-              Expanded(child: TextField(controller: _stateController, decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder()))),
+              Expanded(child: TextField(controller: _stateController, style: textStyle, decoration: inputDecoration.copyWith(labelText: 'State'))),
             ],
           ),
           const SizedBox(height: 32),
@@ -798,7 +924,7 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _updateProfile,
+              onPressed: _isLoading ? null : _showUpdateConfirmation,
               child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Update Profile'),
             ),
           ),
@@ -807,10 +933,10 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-            title: const Text('Export Earnings Report'),
-            trailing: const Icon(Icons.download),
+            title: Text('Export Earnings Report', style: textStyle),
+            trailing: Icon(Icons.download, color: isDark ? AppTheme.baseWhite.withOpacity(0.5) : Colors.grey),
             onTap: () => _generatePdfReport(context, user),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300)),
           ),
           const SizedBox(height: 50),
         ],

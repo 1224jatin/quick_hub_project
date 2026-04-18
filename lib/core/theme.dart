@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Brand Colors based on the Pinterest Reference
+  // Brand Colors
   static const Color primaryDarkBlue = Color(0xFF0A1F44); // Deep Navy
   static const Color primaryLightBlue = Color(0xFFEDF2F7); // Soft light blue for inputs
   static const Color white = Colors.white;
+  static const Color baseWhite = Color(0xFFF8FAFC);
   static const Color darkSurface = Color(0xFF1E293B);
   static const Color darkBackground = Color(0xFF0F172A);
   
   static const Color textLightMode = Color(0xFF0A1F44);
-  static const Color textDarkMode = Colors.white;
+  static const Color textDarkMode = Color(0xFFF8FAFC);
 
   // ---------------- LIGHT THEME ----------------
   static ThemeData get lightTheme {
@@ -79,34 +80,34 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      primaryColor: white,
+      primaryColor: primaryDarkBlue, // Updated to Dark Blue as requested
       scaffoldBackgroundColor: darkBackground,
       textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme).apply(
         bodyColor: textDarkMode,
         displayColor: textDarkMode,
       ),
       colorScheme: const ColorScheme.dark(
-        primary: white,
-        secondary: white,
+        primary: primaryDarkBlue, // Primary is now Dark Blue
+        secondary: primaryDarkBlue,
         surface: darkSurface,
-        onPrimary: primaryDarkBlue,
+        onPrimary: baseWhite, // Use white text/icons over primary dark blue
         onSurface: textDarkMode,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: darkBackground,
-        foregroundColor: white,
+        backgroundColor: primaryDarkBlue, // Header in Dark Blue
+        foregroundColor: baseWhite,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: white,
+          color: baseWhite,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: white,
-          foregroundColor: primaryDarkBlue, // Inverted: dark text on white button
+          backgroundColor: primaryDarkBlue, // Buttons in Dark Blue
+          foregroundColor: baseWhite, // Text in White
           minimumSize: const Size(double.infinity, 55),
           elevation: 0,
           textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
@@ -129,7 +130,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
-          borderSide: const BorderSide(color: white, width: 1.5),
+          borderSide: const BorderSide(color: baseWhite, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       ),
