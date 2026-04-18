@@ -581,7 +581,7 @@ class ActiveProvidersList extends StatelessWidget {
                 TextField(
                   controller: hourlyRateController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Hourly Rate ($)', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText:"Hourly Rate: - ${provider.hourlyRate}", border: const OutlineInputBorder()),
                 ),
                 const SizedBox(height: 16),
                 TextField(

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../view_models/auth_view_model.dart';
 import '../../models/service_request_model.dart';
 import '../../models/transaction_model.dart';
+import '../../models/user_model.dart';
 import '../widgets/animated_bottom_nav.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -18,6 +19,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -544,38 +546,116 @@ class ProviderProfileTab extends StatefulWidget {
 }
 
 class _ProviderProfileTabState extends State<ProviderProfileTab> {
-  final TextEditingController _rateController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _rateController = TextEditingController();
+  final _bioController = TextEditingController();
+  final _houseController = TextEditingController();
+  final _buildingController = TextEditingController();
+  final _landmarkController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  String? _gender;
+  String? _language;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    final rate = context.read<AuthViewModel>().currentUser?.hourlyRate;
-    if (rate != null) {
-      _rateController.text = rate.toString();
+    final user = context.read<AuthViewModel>().currentUser;
+    if (user != null) {
+      _nameController.text = user.name;
+      _ageController.text = user.age?.toString() ?? '';
+      _rateController.text = user.hourlyRate?.toString() ?? '';
+      _bioController.text = user.bio ?? '';
+      _houseController.text = user.houseNo ?? '';
+      _buildingController.text = user.buildingName ?? '';
+      _landmarkController.text = user.landmark ?? '';
+      _cityController.text = user.city ?? '';
+      _stateController.text = user.state ?? '';
+      _gender = user.gender;
+      _language = user.preferredLanguage;
     }
   }
 
-  void _saveRate() async {
-    final double? rate = double.tryParse(_rateController.text);
-    if (rate == null || rate <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid rate')));
-      return;
-    }
-
+  Future<void> _updateProfile() async {
     setState(() => _isLoading = true);
-    final user = context.read<AuthViewModel>().currentUser;
+    final authVM = context.read<AuthViewModel>();
+    final user = authVM.currentUser;
+    
     if (user != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'hourlyRate': rate});
+      final fullAddress = "${_houseController.text}, ${_buildingController.text}, ${_landmarkController.text}, ${_cityController.text}, ${_stateController.text}";
+      
+      final updatedUser = UserModel(
+        uid: user.uid,
+        name: _nameController.text.trim(),
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        age: int.tryParse(_ageController.text),
+        gender: _gender,
+        preferredLanguage: _language,
+        hourlyRate: double.tryParse(_rateController.text),
+        bio: _bioController.text.trim(),
+        houseNo: _houseController.text.trim(),
+        buildingName: _buildingController.text.trim(),
+        landmark: _landmarkController.text.trim(),
+        city: _cityController.text.trim(),
+        state: _stateController.text.trim(),
+        fullAddress: fullAddress,
+        isActive: user.isActive,
+        isVerified: user.isVerified,
+        isPremium: user.isPremium,
+        location: user.location,
+        serviceType: user.serviceType,
+        rating: user.rating,
+        reviewCount: user.reviewCount,
+        aadhaarNumber: user.aadhaarNumber,
+        panNumber: user.panNumber,
+      );
+
+      final success = await authVM.updateProfile(updatedUser);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hourly rate updated')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(success ? 'Profile updated successfully!' : 'Update failed.')),
+        );
       }
     }
     setState(() => _isLoading = false);
   }
 
-  Future<void> _generatePdfReport(BuildContext context, dynamic userModel) async {
-    if (userModel == null) return;
+  Future<void> _useGPS() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.')));
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        setState(() {
+          _houseController.text = p.name ?? '';
+          _buildingController.text = p.subLocality ?? '';
+          _landmarkController.text = p.thoroughfare ?? '';
+          _cityController.text = p.locality ?? '';
+          _stateController.text = p.administrativeArea ?? '';
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to fetch location.')));
+    }
+  }
+
+  Future<void> _generatePdfReport(BuildContext context, UserModel userModel) async {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('transactions')
@@ -584,7 +664,7 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
           .get();
 
       final txns = snapshot.docs.map((doc) => TransactionModel.fromJson(doc.data())).toList();
-      txns.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
+      txns.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       double totalEarnings = 0;
       for (var t in txns) totalEarnings += t.providerEarnings;
@@ -622,93 +702,117 @@ class _ProviderProfileTabState extends State<ProviderProfileTab> {
       await file.writeAsBytes(await pdf.save());
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF Generated Successfully')));
         OpenFile.open(file.path);
       }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
-      }
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthViewModel>().currentUser;
-    final isPremium = user?.isPremium ?? false;
+    if (user == null) return const Center(child: CircularProgressIndicator());
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('Profile: ${user?.name ?? ""}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              if (isPremium) ...[
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text('PRO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                )
-              ]
-            ],
+          Center(
+            child: Stack(
+              children: [
+                CircleAvatar(radius: 50, backgroundColor: Colors.blue.withOpacity(0.1), child: const Icon(Icons.person, size: 50, color: Colors.blue)),
+                if (user.isPremium)
+                  const Positioned(bottom: 0, right: 0, child: CircleAvatar(radius: 14, backgroundColor: Colors.amber, child: Icon(Icons.star, size: 16, color: Colors.white))),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
-          const Text('Set Hourly Rate (INR)'),
+          const SizedBox(height: 24),
+          const Text('Personal Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Divider(),
           const SizedBox(height: 10),
+          TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
           Row(
             children: [
+              Expanded(child: TextField(controller: _ageController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()))),
+              const SizedBox(width: 16),
               Expanded(
-                child: TextField(
-                  controller: _rateController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'e.g. 500'),
+                child: DropdownButtonFormField<String>(
+                  value: ['Male', 'Female', 'Other'].contains(_gender) ? _gender : null,
+                  decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
+                  items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                  onChanged: (val) => setState(() => _gender = val),
                 ),
               ),
-              const SizedBox(width: 10),
-              SizedBox(
-                width: 100,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                  onPressed: _isLoading ? null : _saveRate,
-                  child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
-                ),
-              )
             ],
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: ['English', 'Hindi', 'Punjabi', 'Other'].contains(_language) ? _language : null,
+            decoration: const InputDecoration(labelText: 'Preferred Language', border: OutlineInputBorder()),
+            items: ['English', 'Hindi', 'Punjabi', 'Other'].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+            onChanged: (val) => setState(() => _language = val),
+          ),
+          const SizedBox(height: 24),
+          const Text('Verification (Read-Only)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Divider(),
-          const SizedBox(height: 20),
-          const Text('Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
+          TextField(decoration: const InputDecoration(labelText: 'Aadhaar Number', border: OutlineInputBorder()), controller: TextEditingController(text: user.aadhaarNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 16),
+          TextField(decoration: const InputDecoration(labelText: 'PAN Number', border: OutlineInputBorder()), controller: TextEditingController(text: user.panNumber ?? 'Pending Verification'), readOnly: true, style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 24),
+          const Text('Professional Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Divider(),
+          const SizedBox(height: 10),
+          TextField(controller: _rateController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Hourly Rate (INR)', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          TextField(controller: _bioController, maxLines: 3, decoration: const InputDecoration(labelText: 'Bio / Skills', border: OutlineInputBorder())),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Location Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              TextButton.icon(onPressed: _useGPS, icon: const Icon(Icons.my_location), label: const Text('Use GPS')),
+            ],
+          ),
+          const Divider(),
+          const SizedBox(height: 10),
+          TextField(controller: _houseController, decoration: const InputDecoration(labelText: 'House/Flat No.', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          TextField(controller: _buildingController, decoration: const InputDecoration(labelText: 'Building/Area', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          TextField(controller: _landmarkController, decoration: const InputDecoration(labelText: 'Landmark', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: TextField(controller: _cityController, decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()))),
+              const SizedBox(width: 16),
+              Expanded(child: TextField(controller: _stateController, decoration: const InputDecoration(labelText: 'State', border: OutlineInputBorder()))),
+            ],
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _updateProfile,
+              child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Update Profile'),
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Divider(),
+          const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
             title: const Text('Export Earnings Report'),
-            subtitle: const Text('Download a PDF summary of all earnings.'),
             trailing: const Icon(Icons.download),
-            onTap: () async {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating PDF Report...')));
-              await _generatePdfReport(context, user);
-            },
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300)
-            ),
-          )
+            onTap: () => _generatePdfReport(context, user),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+          ),
+          const SizedBox(height: 50),
         ],
       ),
     );
