@@ -44,14 +44,20 @@ class AuthViewModel extends ChangeNotifier {
     FirebaseAuth.instance.authStateChanges().listen((user) async {
       debugPrint("AuthViewModel: Auth state changed. User: ${user?.email}");
       if (user != null) {
+        _setLoading(true);
         final userProfile = await _firebaseService.getUserProfile(user.uid);
-        _currentUser = userProfile ?? _fallbackUserFromAuth(user);
-        // Update push token whenever auth state changes to a logged in user
+        _currentUser = userProfile;
+        
+        if (userProfile == null) {
+          debugPrint("AuthViewModel: Profile not found in Firestore for UID: ${user.uid}");
+        }
+
         NotificationService().updateToken(user.uid);
+        _setLoading(false);
       } else {
         _currentUser = null;
+        notifyListeners();
       }
-      notifyListeners();
     });
   }
 
@@ -74,7 +80,7 @@ class AuthViewModel extends ChangeNotifier {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userProfile = await _firebaseService.getUserProfile(user.uid);
-        _currentUser = userProfile ?? _fallbackUserFromAuth(user);
+        _currentUser = userProfile;
       }
     } catch (e) {
       debugPrint('AuthViewModel: session check failed: $e');
@@ -146,7 +152,16 @@ class AuthViewModel extends ChangeNotifier {
         final userProfile = await _firebaseService.getUserProfile(
           credential.user!.uid,
         );
-        _currentUser = userProfile ?? _fallbackUserFromAuth(credential.user!);
+        
+        if (userProfile == null) {
+          _setError("Account found, but profile is missing. Please contact support.");
+          _setLoading(false);
+          // Optional: log out if profile is missing to allow retry
+          // await _firebaseService.logout(); 
+          return false;
+        }
+
+        _currentUser = userProfile;
         _setLoading(false);
         return true;
       }
@@ -180,23 +195,6 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
-  UserModel _fallbackUserFromAuth(User user) {
-    final displayName = user.displayName?.trim();
-    final name = (displayName != null && displayName.isNotEmpty)
-        ? displayName
-        : user.email?.split('@').first ?? 'Guest';
-
-    return UserModel(
-      uid: user.uid,
-      name: name,
-      email: user.email ?? '',
-      role: UserRole.consumer,
-      createdAt: user.metadata.creationTime ?? DateTime.now(),
-      isActive: true,
-      rating: 0.0,
-      reviewCount: 0,
-    );
-  }
 
   Future<bool> sendPasswordResetEmail(String email) async {
     _setLoading(true);

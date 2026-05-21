@@ -74,24 +74,33 @@ class AuthenticationWrapper extends StatelessWidget {
     final authViewModel = context.watch<AuthViewModel>();
 
     if (authViewModel.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text("Checking authentication..."),
+            ],
+          ),
+        ),
+      );
     }
 
     if (authViewModel.currentUser != null) {
       final user = authViewModel.currentUser!;
       debugPrint(
-        "AuthenticationWrapper: User detected: ${user.email}, Role: ${user.role}",
+        "AuthenticationWrapper: Navigating to ${user.role} panel for ${user.email}",
       );
 
-      if (user.role == UserRole.admin) {
-        return const AdminDashboardScreen();
-      } else if (user.role == UserRole.provider) {
-        return const ProviderDashboardScreen();
-      } else {
-        debugPrint(
-          "AuthenticationWrapper: Defaulting to MainCustomerScreen for role: ${user.role}",
-        );
-        return const MainCustomerScreen();
+      switch (user.role) {
+        case UserRole.admin:
+          return const AdminDashboardScreen();
+        case UserRole.provider:
+          return const ProviderDashboardScreen();
+        case UserRole.consumer:
+          return const MainCustomerScreen();
       }
     }
 

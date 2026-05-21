@@ -387,7 +387,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'gender': _selectedGender,
           'serviceType': _skillsController.text,
           'state': _selectedState,
-          'citfluttery': _selectedCity,
+          'city': _selectedCity,
           'createdAt': FieldValue.serverTimestamp(),
           'rating': 0.0,
           'reviewCount': 0,

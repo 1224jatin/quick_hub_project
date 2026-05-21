@@ -181,7 +181,8 @@ class FirebaseService {
           .set(request.toJson());
     } on FirebaseException catch (e) {
       debugPrint(
-        'FirebaseService: failed to create service request ${request.requestId}: ${e.code}',
+        'FirebaseService: failed to create service request '
+            'w${request.requestId}: ${e.code}',
       );
       rethrow;
     } catch (e) {
