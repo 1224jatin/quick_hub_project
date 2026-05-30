@@ -194,8 +194,7 @@ class FirebaseService {
   }
 
   Stream<List<ServiceRequestModel>> streamProviderRequests(String providerId) {
-    // Note: This requires an index (providerId: ASC, timestamp: DESC/ASC)
-    // We'll use ASC for now to match common default behavior if DESC index is missing
+
     return _safeQueryStream<ServiceRequestModel>(
       _firestore
           .collection('requests')
